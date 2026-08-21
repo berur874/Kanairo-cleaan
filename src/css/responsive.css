@@ -1,0 +1,96 @@
+
+
+@media (max-width: 1024px) {
+    .dash-row-2,
+    .dash-row-1-2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    header {
+        flex-wrap: wrap;
+        row-gap: 0.5rem;
+        height: auto;
+        min-height: 64px;
+        padding-top: 0.6rem;
+        padding-bottom: 0.6rem;
+    }
+
+    .brand {
+        font-size: 0.7rem;
+    }
+
+    header nav ul,
+    header .navbar ul {
+        gap: 1rem;
+    }
+
+    header nav a,
+    header .navbar a {
+        font-size: 0.6rem;
+    }
+
+    
+    #marketplace-hero,
+    #marketplace-app,
+    .content-hero,
+    #mission-stats,
+    #problem-solution,
+    #team,
+    #what-is-epr,
+    #epr-features,
+    #compliance-cta {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .hero-inner {
+        padding-top: 56px;
+    }
+
+    .epr-box {
+        padding: 40px 24px;
+    }
+
+    .mkt-hero-card {
+        padding: 20px 18px 16px;
+    }
+
+    .dash-content {
+        padding: 20px 16px;
+    }
+
+    .mkt-grid,
+    .ps-grid {
+        gap: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-title {
+        font-size: clamp(2.6rem, 14vw, 4rem);
+    }
+
+    .section-header,
+    main > section h1 {
+        font-size: clamp(1.7rem, 9vw, 2.4rem);
+    }
+
+    .hero-ctas,
+    .epr-ctas {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .hero-ctas .btn,
+    .hero-ctas .btn-outline,
+    .epr-ctas .btn,
+    .epr-ctas .btn-outline {
+        text-align: center;
+    }
+
+    #waitlist-form {
+        flex-direction: column;
+    }
+}

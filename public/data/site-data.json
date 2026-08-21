@@ -1,0 +1,174 @@
+{
+    "materials": [
+        { "id": "PET", "name": "PET Plastic", "price": 28.5, "unit": "KES/kg", "change": 2.3, "trend": "up" },
+        { "id": "HDPE", "name": "HDPE Plastic", "price": 35.0, "unit": "KES/kg", "change": -0.8, "trend": "down" },
+        { "id": "EWASTE", "name": "E-Waste", "price": 120.0, "unit": "KES/kg", "change": 5.1, "trend": "up" },
+        { "id": "PAPER", "name": "Cardboard", "price": 12.0, "unit": "KES/kg", "change": 0.5, "trend": "up" },
+        { "id": "ALU", "name": "Aluminium", "price": 85.0, "unit": "KES/kg", "change": -1.2, "trend": "down" },
+        { "id": "GLASS", "name": "Clear Glass", "price": 8.5, "unit": "KES/kg", "change": 0.2, "trend": "up" }
+    ],
+
+    "hotspots": [
+        { "name": "Dandora", "material": "Mixed Plastic", "activity": 94, "stock": 2840, "active": true },
+        { "name": "Gikomba", "material": "Textile & Paper", "activity": 78, "stock": 1920, "active": true },
+        { "name": "Industrial Area", "material": "E-Waste", "activity": 87, "stock": 640, "active": true },
+        { "name": "Kibera", "material": "PET Bottles", "activity": 65, "stock": 1100, "active": false },
+        { "name": "Westlands", "material": "HDPE", "activity": 52, "stock": 740, "active": false },
+        { "name": "Eastleigh", "material": "Aluminium", "activity": 71, "stock": 430, "active": true },
+        { "name": "Karen", "material": "Clear Glass", "activity": 41, "stock": 290, "active": false },
+        { "name": "Ruiru", "material": "Cardboard", "activity": 83, "stock": 3200, "active": true }
+    ],
+
+    "defaultHotspots": [
+        { "name": "Gikomba", "materials": [{ "name": "HDPE Plastic", "quantity": 1920 }] },
+        { "name": "Industrial Area", "materials": [{ "name": "E-Waste", "quantity": 640 }] },
+        { "name": "Ruiru", "materials": [{ "name": "Cardboard", "quantity": 3200 }] },
+        { "name": "Eastleigh", "materials": [{ "name": "Aluminium", "quantity": 430 }] },
+        { "name": "Karen", "materials": [{ "name": "Clear Glass", "quantity": 290 }] }
+    ],
+
+    "home": {
+        "howItWorks": [
+            {
+                "num": "01",
+                "icon": "♻️",
+                "title": "Collect & Weigh",
+                "body": "Street collectors bring materials to a verified Micro-Hub. Weight is logged digitally at point of delivery — no paperwork, no disputes."
+            },
+            {
+                "num": "02",
+                "icon": "♻️",
+                "title": "Price Discovery",
+                "body": "Real-time market rates are fetched live from the Kanairo exchange. No more arbitrary broker pricing — PET, HDPE, E-Waste, all transparent."
+            },
+            {
+                "num": "03",
+                "icon": "♻️",
+                "title": "Instant M-Pesa",
+                "body": "Payment is triggered automatically upon weight verification. Funds arrive in the collector's M-Pesa wallet in under 30 seconds."
+            }
+        ],
+        "impact": [
+            { "value": "+30%", "label": "Collector earnings increase via fair market rates and zero broker fees" },
+            { "value": "100%", "label": "Material traceability from street collector to industrial recycler" },
+            { "value": "30s", "label": "M-Pesa settlement from weight verification to wallet receipt" },
+            { "value": "2026", "label": "EPR compliance built into every transaction — no extra steps" }
+        ],
+        "stakeholderTabs": {
+            "collector": {
+                "label": "Collector",
+                "headline": "Know your worth\nbefore you sell.",
+                "body": "Access live market rates from any feature phone. No middlemen, no arbitrary prices. Your materials, your price — direct to verified Micro-Hubs.",
+                "stats": [
+                    { "v": "+30%", "l": "avg. earnings" },
+                    { "v": "30s", "l": "M-Pesa payout" },
+                    { "v": "0", "l": "broker fees" }
+                ],
+                "rows": [
+                    ["14:32", "PET Plastic", "12.4 kg", "KES 353"],
+                    ["13:18", "HDPE", "8.2 kg", "KES 287"],
+                    ["11:45", "Aluminium", "3.1 kg", "KES 264"],
+                    ["09:20", "Cardboard", "22 kg", "KES 264"]
+                ]
+            },
+            "aggregator": {
+                "label": "Micro-Hub",
+                "headline": "Be the digital node\nfor your neighbourhood.",
+                "body": "Aggregate materials from hundreds of collectors. Manage live inventory, post buy offers, and connect directly with industrial recyclers.",
+                "stats": [
+                    { "v": "500+", "l": "collectors/hub" },
+                    { "v": "100%", "l": "traceability" },
+                    { "v": "EPR", "l": "compliance" }
+                ],
+                "rows": [
+                    ["14:45", "PET — 124 kg (3)", "Dandora", "KES 3,534"],
+                    ["13:00", "E-WASTE — 41 kg", "Industrial", "KES 4,920"],
+                    ["11:30", "ALU — 89 kg (7)", "Eastleigh", "KES 7,565"],
+                    ["09:00", "HDPE — 210 kg (12)", "Gikomba", "KES 7,350"]
+                ]
+            },
+            "recycler": {
+                "label": "Recycler",
+                "headline": "Predictable supply.\nZero supply shocks.",
+                "body": "Browse verified inventory across the city. Lock in material contracts before collection day. Full chain-of-custody for EPR compliance.",
+                "stats": [
+                    { "v": "100%", "l": "traceability" },
+                    { "v": "48h", "l": "supply forecast" },
+                    { "v": "2026", "l": "EPR built-in" }
+                ],
+                "rows": [
+                    ["Active", "PET Contract", "2,400 kg/wk", "KES 68,400"],
+                    ["Active", "HDPE Contract", "1,100 kg/wk", "KES 38,500"],
+                    ["Pending", "E-Waste Bid", "500 kg/wk", "KES 60,000"],
+                    ["Closed", "ALU Contract", "800 kg/wk", "KES 68,000"]
+                ]
+            }
+        }
+    },
+
+    "dashboard": {
+        "kpis": [
+            { "label": "Today's Revenue", "value": "KES 89,400", "change": "+18.4%", "pos": true, "spark": [42, 51, 38, 67, 72, 58, 89] },
+            { "label": "Weight Collected", "valueKey": "totalKg", "change": "+24.1%", "pos": true, "spark": [62, 79, 51, 94, 100, 86, 100] },
+            { "label": "Transactions", "value": "113", "change": "+19.1%", "pos": true, "spark": [48, 61, 39, 82, 94, 71, 100] },
+            { "label": "Active Hubs", "valueKey": "activeHubs", "change": "offline", "pos": false, "spark": [8, 8, 7, 8, 8, 6, 5] }
+        ],
+        "weekly": [
+            { "day": "Mon", "revenue": 42000, "weight": 1240 },
+            { "day": "Tue", "revenue": 51000, "weight": 1580 },
+            { "day": "Wed", "revenue": 38000, "weight": 1020 },
+            { "day": "Thu", "revenue": 67000, "weight": 1890 },
+            { "day": "Fri", "revenue": 72000, "weight": 2010 },
+            { "day": "Sat", "revenue": 58000, "weight": 1720 },
+            { "day": "Sun", "revenue": 89000, "weight": 2640 }
+        ],
+        "activity": [
+            { "icon": "♻️", "title": "Dandora Hub weighed 340 kg PET", "meta": "2 min ago", "amt": "KES 9,690" },
+            { "icon": "♻️", "title": "M-Pesa settled — James Otieno", "meta": "5 min ago", "amt": "KES 353" },
+            { "icon": "♻️", "title": "Ruiru Depot listed 1,200 kg Cardboard", "meta": "12 min ago", "amt": "KES 14,400" },
+            { "icon": "♻️", "title": "Industrial Area sold 41 kg E-Waste", "meta": "18 min ago", "amt": "KES 4,920" },
+            { "icon": "♻️", "title": "M-Pesa settled — Amina Wanjiku", "meta": "24 min ago", "amt": "KES 870" },
+            { "icon": "♻️", "title": "Gikomba Yard weighed 210 kg Paper", "meta": "31 min ago", "amt": "KES 2,520" }
+        ],
+        "transactions": [
+            { "id": "TXN-4821", "mat": "PET Plastic", "hub": "Dandora Hub", "wt": "340 kg", "amt": 9690, "status": "settled" },
+            { "id": "TXN-4820", "mat": "E-Waste", "hub": "Industrial", "wt": "41 kg", "amt": 4920, "status": "settled" },
+            { "id": "TXN-4819", "mat": "Cardboard", "hub": "Ruiru Depot", "wt": "1,200 kg", "amt": 14400, "status": "pending" },
+            { "id": "TXN-4818", "mat": "HDPE", "hub": "Gikomba Yard", "wt": "210 kg", "amt": 7350, "status": "settled" },
+            { "id": "TXN-4817", "mat": "Aluminium", "hub": "Eastleigh Hub", "wt": "89 kg", "amt": 7565, "status": "settled" },
+            { "id": "TXN-4816", "mat": "Clear Glass", "hub": "Karen Point", "wt": "140 kg", "amt": 1190, "status": "pending" }
+        ]
+    },
+
+    "about": {
+        "missionStats": [
+            { "value": "8,000+", "label": "Active collectors across Nairobi" },
+            { "value": "23", "label": "Verified Micro-Hubs onboarded" },
+            { "value": "KES 4M", "label": "Paid out to collectors in beta" },
+            { "value": "6", "label": "Industrial recyclers connected" }
+        ],
+        "team": [
+            { "initials": "AO", "name": "Amara Osei", "role": "CEO & Co-Founder", "bio": "Former waste-sector logistics lead with 8 years scaling circular economy ops across East Africa." },
+            { "initials": "KN", "name": "Kamau Njoroge", "role": "CTO & Co-Founder", "bio": "Ex-Safaricom engineer. Built M-Pesa integrations at scale. Obsessed with last-mile fintech." },
+            { "initials": "FM", "name": "Fatuma Mohamed", "role": "Head of Partnerships", "bio": "Connected 200+ recycling facilities to digital marketplaces across the continent." },
+            { "initials": "PW", "name": "Peter Waweru", "role": "Head of Field Ops", "bio": "Spent 5 years on the ground in Nairobi's Micro-Hub network before joining Kanairo." }
+        ]
+    },
+
+    "compliance": {
+        "timeline": [
+            { "date": "Jan 2025", "title": "EPR Regulations Published", "body": "Kenya's NEMA publishes the Extended Producer Responsibility regulations under the Sustainable Waste Management Act 2022.", "done": true },
+            { "date": "Jul 2025", "title": "Industry Consultation Period", "body": "Manufacturers, importers, and recyclers submit compliance roadmaps to NEMA. Documentation requirements clarified.", "done": true },
+            { "date": "Jan 2026", "title": "Compliance Framework Active", "body": "EPR obligations take effect. Companies must demonstrate material recovery chains with verified documentation.", "done": false },
+            { "date": "Jul 2026", "title": "First Annual Audit Cycle", "body": "NEMA conducts first compliance audits. Non-compliant entities face levies of up to KES 5M per quarter.", "done": false }
+        ],
+        "features": [
+            { "title": "Verified Weight Logs", "body": "Every weighing event at a Micro-Hub creates a timestamped, tamper-evident digital record — admissible as EPR compliance documentation." },
+            { "title": "Chain-of-Custody Trail", "body": "From street collector to industrial recycler, every handoff is recorded and attributable to a specific licensed entity." },
+            { "title": "Automated EPR Reports", "body": "Generate quarterly EPR compliance reports from your transaction history in one click — no manual data aggregation required." },
+            { "title": "Material Traceability at 100%", "body": "Every kilogram of material is traceable back to its source neighbourhood, collector ID, and weighing station." },
+            { "title": "Real-Time Compliance Dashboard", "body": "Live view of your recovery volumes against EPR targets, so you always know where you stand before the audit." },
+            { "title": "NEMA-Ready Export", "body": "Export compliance packs in the exact format required by Kenya's NEMA portal — no formatting or data cleaning needed." }
+        ]
+    }
+}
