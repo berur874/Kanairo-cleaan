@@ -1,10 +1,11 @@
+GitHub repo link = https://github.com/berur874/Kanairo-cleaan.git
 team Name - Kanairo Klean
 
 ---TEAM MEMBERS---
 1) Rommie Mureiithi - DevOps lead
-2) Favor Vincent - Backend Dev
+2) Favor Vincent(182037) - Backend Dev
 3) Elvis Ndungu - API lead / Intergration lead
-4) Markroy Berur - Backend Dev/       
+4) Markroy Berur(222085) - Backend Dev/       
    DevOps lead 
 
 ---TEAM AUDIT---
