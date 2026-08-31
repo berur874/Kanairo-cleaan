@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto'; 
-import { Dot, Pill } from '../components/Shared.jsx';
+import { Dot } from '../components/Shared.jsx';
 import { MaterialMix, InventoryBars, LogMaterialForm } from '../components/DashboardInventory.jsx';
-import { getHotspots, onHotspotsChange } from '../utils/storage.jsx';
+import { useHotspots } from '../utils/storage.jsx';
 import { getMaterials, simulatePrices } from '../utils/marketData.jsx';
 import { loadSiteData } from '../utils/data-loader.jsx';
+import { getTransactions, onTransactionsChange } from '../utils/payments.jsx';
 
 
 const MAP_PINS = [
@@ -20,8 +21,9 @@ const MAP_PINS = [
 
 export default function Dashboard() {
     const [siteData, setSiteData] = useState(null);
-    const [hotspots, setHotspots] = useState([]);
+    const { hotspots, loading: hotspotsLoading } = useHotspots();
     const [prices, setPrices] = useState([]);
+    const [transactions, setTransactions] = useState([]);
 
     const revenueCanvasRef = useRef(null);
     const weightCanvasRef = useRef(null);
@@ -38,13 +40,13 @@ export default function Dashboard() {
             if (alive) setPrices(m.slice(0, 4));
         });
 
-        getHotspots().then((hs) => {
-            if (alive) setHotspots(hs);
+        getTransactions(10).then((txns) => {
+            if (alive) setTransactions(txns);
         });
 
-        const unsubscribe = onHotspotsChange((updated) => {
-            if (alive) setHotspots(updated);
-        });
+        const unsubscribe = onTransactionsChange((txns) => {
+            if (alive) setTransactions(txns);
+        }, 10);
 
         return () => {
             alive = false;
@@ -136,7 +138,7 @@ export default function Dashboard() {
 
     if (!siteData) return null;
 
-    const { kpis: kpiTemplate, activity, transactions } = siteData.dashboard;
+    const { kpis: kpiTemplate, activity } = siteData.dashboard;
 
     
     const totalKg = hotspots.reduce((s, hs) => s + hs.materials.reduce((s2, m) => s2 + m.quantity, 0), 0);
@@ -253,13 +255,13 @@ export default function Dashboard() {
                         <div className="dash-card">
                             <div className="dash-card-head"><h3>Material Mix</h3></div>
                             <div id="material-mix-root">
-                                <MaterialMix />
+                                <MaterialMix hotspots={hotspots} loading={hotspotsLoading} />
                             </div>
                         </div>
                         <div className="dash-card">
                             <div className="dash-card-head"><h3>Current Inventory</h3></div>
                             <div id="inventory-bars-root">
-                                <InventoryBars />
+                                <InventoryBars hotspots={hotspots} loading={hotspotsLoading} />
                             </div>
                         </div>
                     </div>
@@ -310,20 +312,25 @@ export default function Dashboard() {
                         </div>
                         <div>
                             <div className="txn-head-row">
-                                {['TXN ID', 'Material', 'Hub', 'Weight', 'Amount', 'Status'].map((t) => (
+                                {['TXN ID', 'Material', 'Weight', 'Amount', 'Date'].map((t) => (
                                     <span key={t}>{t}</span>
                                 ))}
                             </div>
-                            {transactions.map((t) => (
-                                <div className="txn-row" key={t.id}>
-                                    <span className="txn-id">{t.id}</span>
-                                    <span className="txn-mat">{t.mat}</span>
-                                    <span className="txn-hub">{t.hub}</span>
-                                    <span className="txn-wt">{t.wt}</span>
-                                    <span className="txn-amt">KES {t.amt.toLocaleString()}</span>
-                                    <Pill status={t.status} />
-                                </div>
-                            ))}
+                            {transactions.length === 0 ? (
+                                <p style={{ fontSize: '0.78rem', color: 'var(--outline)', padding: '12px 0' }}>
+                                    No transactions yet — purchases from the Marketplace will show up here.
+                                </p>
+                            ) : (
+                                transactions.map((t) => (
+                                    <div className="txn-row" key={t.id}>
+                                        <span className="txn-id">{t.id}</span>
+                                        <span className="txn-mat">{t.material}</span>
+                                        <span className="txn-wt">{t.quantity.toLocaleString()} kg</span>
+                                        <span className="txn-amt">KES {t.amount.toLocaleString()}</span>
+                                        <span className="txn-hub">{t.date}</span>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
 

@@ -1,4 +1,5 @@
 // src/utils/storage.jsx
+import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient.jsx';
 
 /**
@@ -128,6 +129,44 @@ export function onHotspotsChange(callback) {
     return () => {
         supabase.removeChannel(channel);
     };
+}
+
+/**
+ * Shared hook: fetches hotspots once and subscribes to live changes,
+ * for use by a single owning component (e.g. a page) that then passes
+ * `hotspots` down as a prop. Avoids every consumer independently
+ * re-fetching and opening its own realtime channel.
+ */
+export function useHotspots() {
+    const [hotspots, setHotspots] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        let alive = true;
+
+        getHotspots()
+            .then((hs) => {
+                if (alive) {
+                    setHotspots(hs);
+                    setLoading(false);
+                }
+            })
+            .catch((err) => {
+                console.error('Failed to load hotspots:', err);
+                if (alive) setLoading(false);
+            });
+
+        const unsubscribe = onHotspotsChange((hs) => {
+            if (alive) setHotspots(hs);
+        });
+
+        return () => {
+            alive = false;
+            unsubscribe();
+        };
+    }, []);
+
+    return { hotspots, loading };
 }
 
 /** Pure helper — unchanged. Aggregates quantities by material name. */

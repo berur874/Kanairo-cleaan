@@ -1,6 +1,6 @@
 // src/components/DashboardInventory.jsx
 import React, { useState, useEffect } from 'react';
-import { getHotspots, addInventory, onHotspotsChange, aggregateInventory } from '../utils/storage.jsx';
+import { addInventory, aggregateInventory } from '../utils/storage.jsx';
 import { getMaterials, getHotspotShowcase } from '../utils/marketData.jsx';
 
 const MATERIAL_COLORS = {
@@ -12,16 +12,7 @@ const MATERIAL_COLORS = {
     'Clear Glass': '#3f6b46',
 };
 
-export function MaterialMix() {
-    const [hotspots, setHotspots] = useState([]);
-
-    useEffect(() => {
-        let alive = true;
-        getHotspots().then((hs) => { if (alive) setHotspots(hs); });
-        const unsubscribe = onHotspotsChange((hs) => { if (alive) setHotspots(hs); });
-        return () => { alive = false; unsubscribe(); };
-    }, []);
-
+export function MaterialMix({ hotspots = [], loading = false }) {
     const inv = aggregateInventory(hotspots);
     const total = inv.reduce((s, i) => s + i.quantity, 0) || 1;
     let cursor = 0;
@@ -42,7 +33,11 @@ export function MaterialMix() {
         <div className="mix-wrap">
             <div className="mix-donut" style={donutStyle} />
             <div className="mix-legend">
-                {inv.length === 0 ? (
+                {loading ? (
+                    <p style={{ fontSize: '0.78rem', color: 'var(--outline)' }}>
+                        Loading inventory…
+                    </p>
+                ) : inv.length === 0 ? (
                     <p style={{ fontSize: '0.78rem', color: 'var(--outline)' }}>
                         No inventory logged yet.
                     </p>
@@ -63,22 +58,17 @@ export function MaterialMix() {
     );
 }
 
-export function InventoryBars() {
-    const [hotspots, setHotspots] = useState([]);
-
-    useEffect(() => {
-        let alive = true;
-        getHotspots().then((hs) => { if (alive) setHotspots(hs); });
-        const unsubscribe = onHotspotsChange((hs) => { if (alive) setHotspots(hs); });
-        return () => { alive = false; unsubscribe(); };
-    }, []);
-
+export function InventoryBars({ hotspots = [], loading = false }) {
     const inv = aggregateInventory(hotspots);
     const max = Math.max(1, ...inv.map((i) => i.quantity));
 
     return (
         <div className="inv-bars">
-            {inv.length === 0 ? (
+            {loading ? (
+                <p style={{ fontSize: '0.78rem', color: 'var(--outline)' }}>
+                    Loading inventory…
+                </p>
+            ) : inv.length === 0 ? (
                 <p style={{ fontSize: '0.78rem', color: 'var(--outline)' }}>
                     Log a material below to see it here.
                 </p>

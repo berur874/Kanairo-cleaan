@@ -90,6 +90,33 @@ export async function recordTransaction({ material, quantity, amount }) {
     };
 }
 
+/**
+ * Subscribe to live transaction changes. Calls `callback` with the fresh
+ * transactions list (most recent first, capped at `limit`) whenever a new
+ * transaction is recorded from any client. Returns an unsubscribe function.
+ *
+ * Uses a uniquely-named channel per call (Supabase channel names must be
+ * unique — reusing one across multiple subscribers throws).
+ */
+export function onTransactionsChange(callback, limit = 50) {
+    const refresh = () => {
+        getTransactions(limit)
+            .then(callback)
+            .catch((err) => console.error('Failed to refresh transactions:', err));
+    };
+
+    const channelName = `transactions-live-${Math.random().toString(36).slice(2)}`;
+
+    const channel = supabase
+        .channel(channelName)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, refresh)
+        .subscribe();
+
+    return () => {
+        supabase.removeChannel(channel);
+    };
+}
+
 /** Fetch recent transactions, most recent first. */
 export async function getTransactions(limit = 50) {
     const { data, error } = await supabase
