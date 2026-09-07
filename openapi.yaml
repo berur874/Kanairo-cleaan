@@ -1,85 +1,13 @@
 openapi: 3.0.0
 info:
-  title: Kanairo-Klean Marketplace API
+  title: Sourcing & Material Management API (Consumer Contract)
   version: 1.0.0
-  description: API contract for Kanairo-Klean venue management and raw material sourcing.
+  description: OpenAPI contract for raw material sourcing, collection hotspots, and post-job scrap reporting.
 
 paths:
-  /venues:
-    get:
-      summary: List market venues filtered by category and Nairobi area
-      parameters:
-        - name: category
-          in: query
-          required: false
-          description: Filter venues by category type (e.g., recycling, market)
-          schema:
-            type: string
-            example: recycling
-        - name: area
-          in: query
-          required: false
-          description: Filter venues by Nairobi area/neighborhood
-          schema:
-            type: string
-            example: Westlands
-      responses:
-        '200':
-          description: A list of filtered market venues
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Venue'
-        '400':
-          $ref: '#/components/responses/400Error'
-
-  /venues/{venue_id}:
-    get:
-      summary: Retrieve specific venue details including address, geolocation, and accessibility badges
-      parameters:
-        - name: venue_id
-          in: path
-          required: true
-          description: Unique identifier of the venue
-          schema:
-            type: string
-            example: ven_12345
-      responses:
-        '200':
-          description: Detailed information about the specified venue
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VenueDetail'
-        '404':
-          $ref: '#/components/responses/404Error'
-
-  /venues/{venue_id}/rating:
-    get:
-      summary: Read the average community star rating for a venue
-      parameters:
-        - name: venue_id
-          in: path
-          required: true
-          description: Unique identifier of the venue
-          schema:
-            type: string
-            example: ven_12345
-      responses:
-        '200':
-          description: The community rating summary for the venue
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VenueRating'
-        '404':
-          $ref: '#/components/responses/404Error'
-
   /collection-locations:
     get:
-      summary: Read active collection and drop-off hotspot locations
+      summary: Read active collection and drop-off hotspot locations for material sourcing
       responses:
         '200':
           description: A list of active material sourcing hotspot locations
@@ -92,7 +20,7 @@ paths:
 
   /materials:
     get:
-      summary: Read raw materials catalog with optional filters for type and minimum quantity
+      summary: Read raw materials catalog with pricing or filter by type and minimum available quantity
       parameters:
         - name: type
           in: query
@@ -123,7 +51,7 @@ paths:
 
   /scrap-logs:
     post:
-      summary: Create a leftover-scrap log entry after a completed job
+      summary: Create a leftover-scrap log entry after a completed job to report reusable materials
       requestBody:
         required: true
         content:
@@ -148,95 +76,8 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-    '404Error':
-      description: The requested resource was not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
 
   schemas:
-    Venue:
-      type: object
-      required:
-        - id
-        - name
-        - category
-        - area
-      properties:
-        id:
-          type: string
-          example: ven_12345
-        name:
-          type: string
-          example: Kariobangi Social Market
-        category:
-          type: string
-          example: Recycling Center
-        area:
-          type: string
-          example: Eastlands
-
-    VenueDetail:
-      type: object
-      required:
-        - id
-        - name
-        - category
-        - area
-        - full_address
-        - latitude
-        - longitude
-        - accessibility_badges
-      properties:
-        id:
-          type: string
-          example: ven_12345
-        name:
-          type: string
-          example: Kariobangi Social Market
-        category:
-          type: string
-          example: Recycling Center
-        area:
-          type: string
-          example: Eastlands
-        full_address:
-          type: string
-          example: Kamunde Road, Kariobangi North, Nairobi
-        latitude:
-          type: number
-          format: double
-          example: -1.2523
-        longitude:
-          type: number
-          format: double
-          example: 36.8831
-        accessibility_badges:
-          type: array
-          description: Embedded static accessibility features available at venue
-          items:
-            type: string
-          example: ["wheelchair_accessible_entrance", "step_free_access", "spacious_loading_bay"]
-
-    VenueRating:
-      type: object
-      required:
-        - venue_id
-        - average_rating
-        - total_reviews
-      properties:
-        venue_id:
-          type: string
-          example: ven_12345
-        average_rating:
-          type: number
-          format: float
-          example: 4.6
-        total_reviews:
-          type: integer
-          example: 128
-
     CollectionLocation:
       type: object
       required:
