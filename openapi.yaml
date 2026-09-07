@@ -1,0 +1,212 @@
+openapi: 3.0.0
+info:
+  title: Sourcing & Material Management API (Consumer Contract)
+  version: 1.0.0
+  description: OpenAPI contract for raw material sourcing, collection hotspots, and post-job scrap reporting.
+
+paths:
+  /collection-locations:
+    get:
+      summary: Read active collection and drop-off hotspot locations for material sourcing
+      responses:
+        '200':
+          description: A list of active material sourcing hotspot locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CollectionLocation'
+
+  /materials:
+    get:
+      summary: Read raw materials catalog with pricing or filter by type and minimum available quantity
+      parameters:
+        - name: type
+          in: query
+          required: false
+          description: Filter by raw material type (e.g., plastic, glass, metal)
+          schema:
+            type: string
+            example: PET Plastic
+        - name: min_quantity_kg
+          in: query
+          required: false
+          description: Filter by the minimum quantity of material (in kg) available
+          schema:
+            type: number
+            format: float
+            example: 50.5
+      responses:
+        '200':
+          description: Catalog list of raw materials matching search criteria
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Material'
+        '400':
+          $ref: '#/components/responses/400Error'
+
+  /scrap-logs:
+    post:
+      summary: Create a leftover-scrap log entry after a completed job to report reusable materials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScrapLogCreate'
+      responses:
+        '201':
+          description: Scrap log entry successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScrapLog'
+        '400':
+          $ref: '#/components/responses/400Error'
+
+components:
+  responses:
+    '400Error':
+      description: Invalid request parameters or body payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    CollectionLocation:
+      type: object
+      required:
+        - id
+        - name
+        - location_type
+        - latitude
+        - longitude
+        - is_active
+      properties:
+        id:
+          type: string
+          example: loc_88321
+        name:
+          type: string
+          example: Gikomba Collection Hotspot
+        location_type:
+          type: string
+          enum: [collection_point, drop_off_spot, hub]
+          example: drop_off_spot
+        latitude:
+          type: number
+          format: double
+          example: -1.2841
+        longitude:
+          type: number
+          format: double
+          example: 36.8362
+        is_active:
+          type: boolean
+          example: true
+
+    Material:
+      type: object
+      required:
+        - id
+        - name
+        - type
+        - quantity_available_kg
+        - unit_price_kes
+      properties:
+        id:
+          type: string
+          example: mat_99410
+        name:
+          type: string
+          example: Sorted HDPE Plastic Flakes
+        type:
+          type: string
+          example: HDPE Plastic
+        quantity_available_kg:
+          type: number
+          format: float
+          example: 250.0
+        unit_price_kes:
+          type: number
+          format: float
+          example: 45.00
+
+    ScrapLogCreate:
+      type: object
+      required:
+        - job_id
+        - material_type
+        - quantity_kg
+        - reported_at
+      properties:
+        job_id:
+          type: string
+          example: job_77210
+        material_type:
+          type: string
+          example: Scrap Copper Wire
+        quantity_kg:
+          type: number
+          format: float
+          example: 12.5
+        notes:
+          type: string
+          example: Leftover wiring insulation stripped and ready for recycling.
+        reported_at:
+          type: string
+          format: date-time
+          example: "2026-09-07T13:00:00Z"
+
+    ScrapLog:
+      type: object
+      required:
+        - id
+        - job_id
+        - material_type
+        - quantity_kg
+        - reported_at
+        - status
+      properties:
+        id:
+          type: string
+          example: log_44129
+        job_id:
+          type: string
+          example: job_77210
+        material_type:
+          type: string
+          example: Scrap Copper Wire
+        quantity_kg:
+          type: number
+          format: float
+          example: 12.5
+        notes:
+          type: string
+          example: Leftover wiring insulation stripped and ready for recycling.
+        reported_at:
+          type: string
+          format: date-time
+          example: "2026-09-07T13:00:00Z"
+        status:
+          type: string
+          enum: [logged, verified, processed]
+          example: logged
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: "Invalid query parameter or missing required body attribute."
