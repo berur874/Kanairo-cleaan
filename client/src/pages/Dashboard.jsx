@@ -5,7 +5,7 @@ import { MaterialMix, InventoryBars, LogMaterialForm } from '../components/Dashb
 import { useHotspots } from '../utils/storage.jsx';
 import { getMaterials, simulatePrices } from '../utils/marketData.jsx';
 import { loadSiteData } from '../utils/data-loader.jsx';
-import { getTransactions, onTransactionsChange } from '../utils/payments.jsx';
+import { getTransactions, onTransactionsChange, getDashboardSummary } from '../utils/payments.jsx';
 
 
 const MAP_PINS = [
@@ -21,9 +21,10 @@ const MAP_PINS = [
 
 export default function Dashboard() {
     const [siteData, setSiteData] = useState(null);
-    const { hotspots, loading: hotspotsLoading } = useHotspots();
+    const {hotspots, loading: hotspotsLoading } = useHotspots();
     const [prices, setPrices] = useState([]);
     const [transactions, setTransactions] = useState([]);
+    const [summary, setSummary] = useState(null);
 
     const revenueCanvasRef = useRef(null);
     const weightCanvasRef = useRef(null);
@@ -42,6 +43,10 @@ export default function Dashboard() {
 
         getTransactions(10).then((txns) => {
             if (alive) setTransactions(txns);
+        });
+
+        getDashboardSummary().then((s) => {
+            if (alive) setSummary(s);
         });
 
         const unsubscribe = onTransactionsChange((txns) => {
@@ -64,9 +69,9 @@ export default function Dashboard() {
 
     
     useEffect(() => {
-        if (!siteData) return;
+        if (!summary) return;
 
-        const { weekly } = siteData.dashboard;
+        const { weekly } = summary;
         const tickStyle = { color: '#5a7a5a', font: { family: 'JetBrains Mono', size: 9 } };
 
         let revenueChartInstance = null;
@@ -134,31 +139,47 @@ export default function Dashboard() {
             if (revenueChartInstance) revenueChartInstance.destroy();
             if (weightChartInstance) weightChartInstance.destroy();
         };
-    }, [siteData]);
+    }, [summary]);
 
-    if (!siteData) return null;
+    if (!siteData || !summary) return null;
 
-    const { kpis: kpiTemplate, activity } = siteData.dashboard;
+    const { kpis: kpiTemplate } = siteData.dashboard;
 
     
-    const totalKg = hotspots.reduce((s, hs) => s + hs.materials.reduce((s2, m) => s2 + m.quantity, 0), 0);
     const activeHubsCount = hotspots.length;
-    const computedMetrics = {
-        totalKg: `${totalKg.toLocaleString()} kg`,
-        activeHubs: `${activeHubsCount} / 8`
-    };
+
+    const activity = transactions.map((t) => ({
+        icon: '♻️',
+        title: `Sold ${t.quantity.toLocaleString()} kg ${t.material} — receipt ${t.id}`,
+        meta: t.date,
+        amt: `KES ${t.amount.toLocaleString()}`,
+    }));
 
     const resolvedKPIs = kpiTemplate.map((k) => {
         if (k.valueKey === 'activeHubs') {
-            return { 
-                ...k, 
-                value: computedMetrics.activeHubs, 
-                change: activeHubsCount < 8 ? `${8 - activeHubsCount} offline` : 'all online', 
-                pos: activeHubsCount >= 6 
+            return {
+                ...k,
+                value: `${activeHubsCount} / 8`,
+                change: activeHubsCount < 8 ? `${8 - activeHubsCount} offline` : 'all online',
+                pos: activeHubsCount >= 6,
             };
         }
         if (k.valueKey === 'totalKg') {
-            return { ...k, value: computedMetrics.totalKg };
+            return {
+                ...k,
+                value: `${summary.weightTotal.toLocaleString()} kg`,
+                spark: summary.weekly.map((w) => w.weight),
+            };
+        }
+        if (k.label === "Today's Revenue") {
+            return {
+                ...k,
+                value: `KES ${summary.revenueTotal.toLocaleString()}`,
+                spark: summary.weekly.map((w) => w.revenue),
+            };
+        }
+        if (k.label === 'Transactions') {
+            return { ...k, value: String(summary.transactionCount) };
         }
         return k;
     });

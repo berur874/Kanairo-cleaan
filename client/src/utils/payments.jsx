@@ -1,14 +1,12 @@
 // src/utils/payments.jsx
-import { supabase } from './supabaseClient.jsx';
-import { deductInventory } from './storage.jsx';
 
-function generateMpesaReceipt() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = 'KAN';
-    for (let i = 0; i < 7; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
+const API_URL = import.meta.env.VITE_API_URL;
+
+/** Aggregate revenue/weight/transaction-count totals plus a 7-day breakdown. */
+export async function getDashboardSummary() {
+    const res = await fetch(`${API_URL}/dashboard/summary`);
+    if (!res.ok) throw new Error(`Failed to load dashboard summary: ${res.status}`);
+    return res.json();
 }
 
 export function showSuccessNotification(message = 'Transaction complete') {
@@ -61,25 +59,18 @@ export function showSuccessNotification(message = 'Transaction complete') {
 }
 
 /**
- * Records an M-Pesa purchase as a transaction row in the database and
- * deducts the purchased quantity from inventory. Returns the saved
- * transaction (now async — callers need to await it).
+ * Records an M-Pesa purchase as a transaction row in the database (the
+ * server also deducts the purchased quantity from inventory). Returns the
+ * saved transaction.
  */
 export async function recordTransaction({ material, quantity, amount }) {
-    const receipt = generateMpesaReceipt();
-
-    const { data, error } = await supabase
-        .from('transactions')
-        .insert({ id: receipt, material, quantity, amount })
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Failed to record transaction:', error);
-        throw error;
-    }
-
-    await deductInventory(material, quantity);
+    const res = await fetch(`${API_URL}/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ material, quantity, amount }),
+    });
+    if (!res.ok) throw new Error(`Failed to record transaction: ${res.status}`);
+    const data = await res.json();
 
     return {
         id: data.id,
@@ -91,46 +82,22 @@ export async function recordTransaction({ material, quantity, amount }) {
 }
 
 /**
- * Subscribe to live transaction changes. Calls `callback` with the fresh
- * transactions list (most recent first, capped at `limit`) whenever a new
- * transaction is recorded from any client. Returns an unsubscribe function.
- *
- * Uses a uniquely-named channel per call (Supabase channel names must be
- * unique — reusing one across multiple subscribers throws).
+ * Fires once with the current transactions snapshot (no polling/live push —
+ * this is a one-shot read from the DB). Returns a no-op unsubscribe for
+ * call-site compatibility.
  */
 export function onTransactionsChange(callback, limit = 50) {
-    const refresh = () => {
-        getTransactions(limit)
-            .then(callback)
-            .catch((err) => console.error('Failed to refresh transactions:', err));
-    };
-
-    const channelName = `transactions-live-${Math.random().toString(36).slice(2)}`;
-
-    const channel = supabase
-        .channel(channelName)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, refresh)
-        .subscribe();
-
-    return () => {
-        supabase.removeChannel(channel);
-    };
+    getTransactions(limit).then(callback).catch((err) => console.error('Failed to refresh transactions:', err));
+    return () => {};
 }
 
 /** Fetch recent transactions, most recent first. */
 export async function getTransactions(limit = 50) {
-    const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit);
+    const res = await fetch(`${API_URL}/transactions?limit=${limit}`);
+    if (!res.ok) throw new Error(`Failed to load transactions: ${res.status}`);
+    const rows = await res.json();
 
-    if (error) {
-        console.error('Failed to load transactions:', error);
-        throw error;
-    }
-
-    return (data || []).map((t) => ({
+    return rows.map((t) => ({
         id: t.id,
         material: t.material,
         quantity: Number(t.quantity),

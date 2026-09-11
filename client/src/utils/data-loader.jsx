@@ -1,5 +1,3 @@
-
-
 let pending = null;
 
 export function loadSiteData() {
