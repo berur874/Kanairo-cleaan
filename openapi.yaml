@@ -1,88 +1,16 @@
 openapi: 3.0.0
 info:
-  title: Kanairo-Klean Marketplace API
+  title: Kanairo-Klean Provider API
+  description: API contract provided by Kanairo-Klean (Team 13) for Group 1 (Artisans App) to source raw materials and log scrap.
   version: 1.0.0
-  description: API contract for Kanairo-Klean venue management and raw material sourcing.
-
 paths:
-  /venues:
-    get:
-      summary: List market venues filtered by category and Nairobi area
-      parameters:
-        - name: category
-          in: query
-          required: false
-          description: Filter venues by category type (e.g., recycling, market)
-          schema:
-            type: string
-            example: recycling
-        - name: area
-          in: query
-          required: false
-          description: Filter venues by Nairobi area/neighborhood
-          schema:
-            type: string
-            example: Westlands
-      responses:
-        '200':
-          description: A list of filtered market venues
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Venue'
-        '400':
-          $ref: '#/components/responses/400Error'
-
-  /venues/{venue_id}:
-    get:
-      summary: Retrieve specific venue details including address, geolocation, and accessibility badges
-      parameters:
-        - name: venue_id
-          in: path
-          required: true
-          description: Unique identifier of the venue
-          schema:
-            type: string
-            example: ven_12345
-      responses:
-        '200':
-          description: Detailed information about the specified venue
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VenueDetail'
-        '404':
-          $ref: '#/components/responses/404Error'
-
-  /venues/{venue_id}/rating:
-    get:
-      summary: Read the average community star rating for a venue
-      parameters:
-        - name: venue_id
-          in: path
-          required: true
-          description: Unique identifier of the venue
-          schema:
-            type: string
-            example: ven_12345
-      responses:
-        '200':
-          description: The community rating summary for the venue
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VenueRating'
-        '404':
-          $ref: '#/components/responses/404Error'
-
   /collection-locations:
     get:
-      summary: Read active collection and drop-off hotspot locations
+      summary: List collection and drop-off hotspots
+      description: Retrieve active second-hand/raw material collection locations where artisans can pick up materials.
       responses:
         '200':
-          description: A list of active material sourcing hotspot locations
+          description: A list of active collection hotspots.
           content:
             application/json:
               schema:
@@ -92,179 +20,77 @@ paths:
 
   /materials:
     get:
-      summary: Read raw materials catalog with optional filters for type and minimum quantity
+      summary: Read raw materials catalog
+      description: Retrieve available raw materials with costs, with optional filtering by material type and minimum available quantity.
       parameters:
         - name: type
           in: query
           required: false
-          description: Filter by raw material type (e.g., plastic, glass, metal)
+          description: Filter by material category (e.g., scrap_metal, plastic, wood).
           schema:
             type: string
-            example: PET Plastic
+            example: "scrap_metal"
         - name: min_quantity_kg
           in: query
           required: false
-          description: Filter by the minimum quantity of material (in kg) available
+          description: Filter materials available in quantities greater than or equal to this value (in kg).
           schema:
             type: number
             format: float
-            example: 50.5
+            example: 50.0
       responses:
         '200':
-          description: Catalog list of raw materials matching search criteria
+          description: A catalog of raw materials matching search criteria.
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/Material'
-        '400':
-          $ref: '#/components/responses/400Error'
 
   /scrap-logs:
     post:
-      summary: Create a leftover-scrap log entry after a completed job
+      summary: Create leftover scrap log entry
+      description: Submit a log entry reporting reusable leftover scrap material after a job is completed.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ScrapLogCreate'
+              $ref: '#/components/schemas/ScrapLogInput'
       responses:
         '201':
-          description: Scrap log entry successfully created
+          description: Scrap log entry successfully created.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScrapLog'
         '400':
-          $ref: '#/components/responses/400Error'
+          description: Invalid request payload or missing required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
 components:
-  responses:
-    '400Error':
-      description: Invalid request parameters or body payload
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    '404Error':
-      description: The requested resource was not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-
   schemas:
-    Venue:
-      type: object
-      required:
-        - id
-        - name
-        - category
-        - area
-      properties:
-        id:
-          type: string
-          example: ven_12345
-        name:
-          type: string
-          example: Kariobangi Social Market
-        category:
-          type: string
-          example: Recycling Center
-        area:
-          type: string
-          example: Eastlands
-
-    VenueDetail:
-      type: object
-      required:
-        - id
-        - name
-        - category
-        - area
-        - full_address
-        - latitude
-        - longitude
-        - accessibility_badges
-      properties:
-        id:
-          type: string
-          example: ven_12345
-        name:
-          type: string
-          example: Kariobangi Social Market
-        category:
-          type: string
-          example: Recycling Center
-        area:
-          type: string
-          example: Eastlands
-        full_address:
-          type: string
-          example: Kamunde Road, Kariobangi North, Nairobi
-        latitude:
-          type: number
-          format: double
-          example: -1.2523
-        longitude:
-          type: number
-          format: double
-          example: 36.8831
-        accessibility_badges:
-          type: array
-          description: Embedded static accessibility features available at venue
-          items:
-            type: string
-          example: ["wheelchair_accessible_entrance", "step_free_access", "spacious_loading_bay"]
-
-    VenueRating:
-      type: object
-      required:
-        - venue_id
-        - average_rating
-        - total_reviews
-      properties:
-        venue_id:
-          type: string
-          example: ven_12345
-        average_rating:
-          type: number
-          format: float
-          example: 4.6
-        total_reviews:
-          type: integer
-          example: 128
-
     CollectionLocation:
       type: object
       required:
-        - id
+        - location_id
         - name
-        - location_type
-        - latitude
-        - longitude
+        - area
         - is_active
       properties:
-        id:
+        location_id:
           type: string
-          example: loc_88321
+          example: "loc-001"
         name:
           type: string
-          example: Gikomba Collection Hotspot
-        location_type:
+          example: "Gikomba Sorting Depot"
+        area:
           type: string
-          enum: [collection_point, drop_off_spot, hub]
-          example: drop_off_spot
-        latitude:
-          type: number
-          format: double
-          example: -1.2841
-        longitude:
-          type: number
-          format: double
-          example: 36.8362
+          example: "Kamukunji"
         is_active:
           type: boolean
           example: true
@@ -272,92 +98,90 @@ components:
     Material:
       type: object
       required:
-        - id
+        - material_id
         - name
         - type
-        - quantity_available_kg
+        - quantity_kg
         - unit_price_kes
       properties:
-        id:
+        material_id:
           type: string
-          example: mat_99410
+          example: "mat-554"
         name:
           type: string
-          example: Sorted HDPE Plastic Flakes
+          example: "Aluminum Scrap Headers"
         type:
           type: string
-          example: HDPE Plastic
-        quantity_available_kg:
+          example: "scrap_metal"
+        quantity_kg:
           type: number
           format: float
-          example: 250.0
+          example: 120.5
         unit_price_kes:
           type: number
           format: float
-          example: 45.00
+          example: 150.00
 
-    ScrapLogCreate:
+    ScrapLogInput:
       type: object
       required:
         - job_id
+        - artisan_id
         - material_type
         - quantity_kg
-        - reported_at
       properties:
         job_id:
           type: string
-          example: job_77210
+          example: "job-8812"
+        artisan_id:
+          type: string
+          example: "art-302"
         material_type:
           type: string
-          example: Scrap Copper Wire
+          example: "scrap_metal"
         quantity_kg:
           type: number
           format: float
           example: 12.5
         notes:
           type: string
-          example: Leftover wiring insulation stripped and ready for recycling.
-        reported_at:
-          type: string
-          format: date-time
-          example: "2026-09-07T13:00:00Z"
+          example: "Offcut copper wiring and brass fittings."
 
     ScrapLog:
       type: object
       required:
-        - id
+        - log_id
         - job_id
+        - artisan_id
         - material_type
         - quantity_kg
-        - reported_at
-        - status
+        - logged_at
       properties:
-        id:
+        log_id:
           type: string
-          example: log_44129
+          example: "log-9901"
         job_id:
           type: string
-          example: job_77210
+          example: "job-8812"
+        artisan_id:
+          type: string
+          example: "art-302"
         material_type:
           type: string
-          example: Scrap Copper Wire
+          example: "scrap_metal"
         quantity_kg:
           type: number
           format: float
           example: 12.5
         notes:
           type: string
-          example: Leftover wiring insulation stripped and ready for recycling.
-        reported_at:
+          example: "Offcut copper wiring and brass fittings."
+        logged_at:
           type: string
           format: date-time
-          example: "2026-09-07T13:00:00Z"
-        status:
-          type: string
-          enum: [logged, verified, processed]
-          example: logged
+          example: "2026-09-07T10:30:00Z"
 
-    ErrorResponse:
+    Error:
       type: object
       required:
         - code
@@ -368,4 +192,4 @@ components:
           example: 400
         message:
           type: string
-          example: "Invalid query parameter or missing required body attribute."
+          example: "Invalid material_type provided."
