@@ -18,23 +18,57 @@ const pool = mysql.createPool({
   connectionLimit: 10
 }).promise();
 
-//To be used by group one
+//To be used by group one — response shaped to match openapi.yaml Material schema exactly
 app.get('/materials', async (req, res) => {
   const { type, min_quantity_kg } = req.query;
-  let sql = 'SELECT * FROM materials WHERE 1=1';
+  let sql = 'SELECT id, name, type, price, stock_kg FROM materials WHERE 1=1';
   const params = [];
   if (type) { sql += ' AND type = ?'; params.push(type); }
   if (min_quantity_kg) { sql += ' AND stock_kg >= ?'; params.push(min_quantity_kg); }
 
   try {
     const [rows] = await pool.query(sql, params);
+    const materials = rows.map((row) => ({
+      material_id: row.id,
+      name: row.name,
+      type: row.type,
+      quantity_kg: Number(row.stock_kg),
+      unit_price_kes: Number(row.price),
+    }));
+    res.json(materials);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+//To be used by group one — response shaped to match openapi.yaml CollectionLocation schema exactly
+app.get('/collection-locations', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT id, name, area, active FROM hotspots');
+    const locations = rows.map((row) => ({
+      location_id: String(row.id),
+      name: row.name,
+      area: row.area,
+      is_active: Boolean(row.active),
+    }));
+    res.json(locations);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+//Internal — not part of the Group 1 contract, feeds the frontend price ticker/marketplace UI
+app.get('/materials/market', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM materials');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/collection-locations', async (req, res) => {
+//Internal — not part of the Group 1 contract, feeds the frontend hotspot showcase UI
+app.get('/collection-locations/showcase', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT h.id, h.name, h.area, m.name AS material, h.activity, h.stock_kg AS stock, h.active

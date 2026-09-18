@@ -2,7 +2,7 @@
 const API_URL = import.meta.env.VITE_API_URL;
 
 export async function getMaterials() {
-    const res = await fetch(`${API_URL}/materials`);
+    const res = await fetch(`${API_URL}/materials/market`);
     if (!res.ok) throw new Error(`Failed to load materials: ${res.status}`);
     const rows = await res.json();
     return rows.map((m) => ({
@@ -16,7 +16,7 @@ export async function getMaterials() {
 }
 
 export async function getHotspotShowcase() {
-    const res = await fetch(`${API_URL}/collection-locations`);
+    const res = await fetch(`${API_URL}/collection-locations/showcase`);
     if (!res.ok) throw new Error(`Failed to load hotspots: ${res.status}`);
     const rows = await res.json();
     return rows.map((h) => ({
