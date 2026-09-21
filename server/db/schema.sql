@@ -51,13 +51,20 @@ CREATE TABLE IF NOT EXISTS transactions (
 
 CREATE TABLE IF NOT EXISTS scrap_logs (
   id int NOT NULL AUTO_INCREMENT,
+  log_id varchar(30) DEFAULT NULL,
+  job_id varchar(50) DEFAULT NULL,
+  artisan_id varchar(50) DEFAULT NULL,
+  material_type varchar(50) DEFAULT NULL,
   hotspot_id int DEFAULT NULL,
   material_id varchar(20) DEFAULT NULL,
   quantity_kg decimal(10,2) NOT NULL,
+  notes text,
   logged_at datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
+  UNIQUE KEY uniq_scrap_log_id (log_id),
   KEY hotspot_id (hotspot_id),
   KEY material_id (material_id),
   CONSTRAINT scrap_logs_ibfk_1 FOREIGN KEY (hotspot_id) REFERENCES hotspots (id),
   CONSTRAINT scrap_logs_ibfk_2 FOREIGN KEY (material_id) REFERENCES materials (id)
 ) ENGINE=InnoDB;
+

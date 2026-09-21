@@ -18,6 +18,32 @@ const pool = mysql.createPool({
   connectionLimit: 10
 }).promise();
 
+async function ensureScrapLogsSchema() {
+  const additions = [
+    ['log_id', 'varchar(30) NULL'],
+    ['job_id', 'varchar(50) NULL'],
+    ['artisan_id', 'varchar(50) NULL'],
+    ['material_type', 'varchar(50) NULL'],
+    ['notes', 'text NULL'],
+  ];
+  for (const [column, definition] of additions) {
+    const [rows] = await pool.query(
+      `SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'scrap_logs' AND COLUMN_NAME = ?`,
+      [column]
+    );
+    if (!rows[0].count) await pool.query(`ALTER TABLE scrap_logs ADD COLUMN ${column} ${definition}`);
+  }
+  await pool.query(`UPDATE scrap_logs SET log_id = CONCAT('log-', LPAD(id, 4, '0')) WHERE log_id IS NULL OR log_id = ''`);
+}
+
+function buildBadRequest(res, message) {
+  return res.status(400).json({ code: 400, message });
+}
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 //To be used by group one — response shaped to match openapi.yaml Material schema exactly
 app.get('/materials', async (req, res) => {
   const { type, min_quantity_kg } = req.query;
@@ -82,16 +108,46 @@ app.get('/collection-locations/showcase', async (req, res) => {
 });
 
 app.post('/scrap-logs', async (req, res) => {
-  const { hotspot_id, material_id, quantity_kg } = req.body;
-  if (!hotspot_id || !material_id || !quantity_kg) {
-    return res.status(400).json({ error: 'hotspot_id, material_id and quantity_kg are required' });
+  const { job_id, artisan_id, material_type, quantity_kg, notes } = req.body;
+
+  if (job_id === undefined || artisan_id === undefined || material_type === undefined || quantity_kg === undefined) {
+    return buildBadRequest(res, 'job_id, artisan_id, material_type and quantity_kg are required');
   }
+
+  if (!isNonEmptyString(job_id) || !isNonEmptyString(artisan_id) || !isNonEmptyString(material_type)) {
+    return buildBadRequest(res, 'job_id, artisan_id and material_type must be non-empty strings');
+  }
+
+  if (typeof quantity_kg !== 'number' || !Number.isFinite(quantity_kg) || quantity_kg <= 0) {
+    return buildBadRequest(res, 'quantity_kg must be a positive number');
+  }
+
+  if (notes !== undefined && (typeof notes !== 'string' || notes.trim().length === 0)) {
+    return buildBadRequest(res, 'notes must be a non-empty string when provided');
+  }
+
   try {
     const [result] = await pool.query(
-      'INSERT INTO scrap_logs (hotspot_id, material_id, quantity_kg) VALUES (?, ?, ?)',
-      [hotspot_id, material_id, quantity_kg]
+      'INSERT INTO scrap_logs (job_id, artisan_id, material_type, quantity_kg, notes) VALUES (?, ?, ?, ?, ?)',
+      [job_id.trim(), artisan_id.trim(), material_type.trim(), quantity_kg, notes ? notes.trim() : null]
     );
-    res.status(201).json({ id: result.insertId, hotspot_id, material_id, quantity_kg });
+
+    const [[saved]] = await pool.query(
+      `SELECT id, log_id, job_id, artisan_id, material_type, quantity_kg, notes, logged_at
+       FROM scrap_logs
+       WHERE id = ?`,
+      [result.insertId]
+    );
+
+    res.status(201).json({
+      log_id: saved.log_id || `log-${String(saved.id).padStart(4, '0')}`,
+      job_id: saved.job_id,
+      artisan_id: saved.artisan_id,
+      material_type: saved.material_type,
+      quantity_kg: Number(saved.quantity_kg),
+      notes: saved.notes || undefined,
+      logged_at: new Date(saved.logged_at).toISOString(),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -250,6 +306,13 @@ app.get('/dashboard/summary', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+ensureScrapLogsSchema()
+  .then(() => {
+    app.listen(port, () => {
+      console.log(`Server is running on port ${port}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to initialize scrap_logs schema:', err.message);
+    process.exit(1);
+  });

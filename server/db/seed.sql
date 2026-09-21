@@ -49,7 +49,7 @@ INSERT INTO transactions (id, material, quantity, amount, created_at) VALUES
   ('KAN0000006', 'PET Plastic', 30, 855.00, NOW() - INTERVAL 1 DAY),
   ('KAN0000007', 'Cardboard', 200, 2400.00, NOW());
 
-INSERT INTO scrap_logs (hotspot_id, material_id, quantity_kg, logged_at) VALUES
-  (1, 'PET', 12.50, NOW() - INTERVAL 3 DAY),
-  (2, 'PAPER', 8.00, NOW() - INTERVAL 2 DAY),
-  (3, 'EWASTE', 5.25, NOW() - INTERVAL 1 DAY);
+INSERT INTO scrap_logs (log_id, job_id, artisan_id, material_type, hotspot_id, material_id, quantity_kg, notes, logged_at) VALUES
+  ('log-0001', 'job-1001', 'art-101', 'plastic', 1, 'PET', 12.50, 'Post-sort PET offcuts', NOW() - INTERVAL 3 DAY),
+  ('log-0002', 'job-1002', 'art-102', 'paper', 2, 'PAPER', 8.00, 'Clean cardboard trims', NOW() - INTERVAL 2 DAY),
+  ('log-0003', 'job-1003', 'art-103', 'e-waste', 3, 'EWASTE', 5.25, 'Mixed small e-waste parts', NOW() - INTERVAL 1 DAY);

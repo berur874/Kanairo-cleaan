@@ -20,9 +20,59 @@ async function run(sqlFile, { withDatabase } = { withDatabase: true }) {
   }
 }
 
+async function ensureScrapLogsColumns() {
+  const connection = await mysql.createConnection({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    multipleStatements: true,
+  });
+
+  try {
+    const columnSpecs = {
+      log_id: 'varchar(30) DEFAULT NULL',
+      job_id: 'varchar(50) DEFAULT NULL',
+      artisan_id: 'varchar(50) DEFAULT NULL',
+      material_type: 'varchar(50) DEFAULT NULL',
+      notes: 'text',
+    };
+
+    for (const [columnName, sqlType] of Object.entries(columnSpecs)) {
+      const [rows] = await connection.query(
+        `SELECT 1
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'scrap_logs' AND COLUMN_NAME = ?`,
+        [process.env.DB_NAME, columnName]
+      );
+
+      if (rows.length === 0) {
+        await connection.query(`ALTER TABLE scrap_logs ADD COLUMN ${columnName} ${sqlType}`);
+        console.log(`Added scrap_logs.${columnName}`);
+      }
+    }
+
+    const [idxRows] = await connection.query(
+      `SELECT 1
+       FROM INFORMATION_SCHEMA.STATISTICS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'scrap_logs' AND INDEX_NAME = 'uniq_scrap_log_id'`,
+      [process.env.DB_NAME]
+    );
+
+    if (idxRows.length === 0) {
+      await connection.query('CREATE UNIQUE INDEX uniq_scrap_log_id ON scrap_logs (log_id)');
+      console.log('Added index uniq_scrap_log_id');
+    }
+  } finally {
+    await connection.end();
+  }
+}
+
 const target = process.argv[2];
 if (target === 'schema') {
-  run('schema.sql', { withDatabase: false }).catch((err) => { console.error(err); process.exit(1); });
+  run('schema.sql', { withDatabase: false })
+    .then(() => ensureScrapLogsColumns())
+    .catch((err) => { console.error(err); process.exit(1); });
 } else if (target === 'seed') {
   run('seed.sql').catch((err) => { console.error(err); process.exit(1); });
 } else {

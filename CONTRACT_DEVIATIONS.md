@@ -47,3 +47,35 @@ Both `GET /materials` and `GET /collection-locations` were tested live against t
 - No extra fields in the response.
 - No missing required fields.
 - Status code 200 on success (no error paths defined in the contract for these list endpoints).
+
+---
+
+## Week 6 — Write Endpoint (`POST /scrap-logs`) vs. `openapi.yaml`
+
+Scope: the write endpoint defined in `openapi.yaml`.
+
+## Verdict: no changes were made to `openapi.yaml`
+
+The contract itself was kept unchanged. The implementation was updated to match the contract and Week 6 validation rules.
+
+## Drift found and fixed
+
+- **Before:** `POST /scrap-logs` accepted `hotspot_id, material_id, quantity_kg` and returned `{ id, hotspot_id, material_id, quantity_kg }`.
+- **Contract requires request (`ScrapLogInput`):** `job_id, artisan_id, material_type, quantity_kg` (required), with optional `notes`.
+- **Contract requires response (`ScrapLog`):** `log_id, job_id, artisan_id, material_type, quantity_kg, logged_at` (plus optional `notes`).
+
+### Implementation fixes applied
+
+- Added validation-first checks before DB writes:
+  - required fields present
+  - correct types (`quantity_kg` must be a number)
+  - usable values (non-empty strings, positive quantity)
+- Invalid payloads now return **400 Bad Request** with `{ code, message }`.
+- Successful creates now return **201 Created** with the exact `ScrapLog` response shape.
+- Database schema support was aligned so writes persist all required contract fields.
+
+## Verification focus for Week 6
+
+- Valid payload -> **201 Created** and persisted row.
+- Missing/invalid required fields -> **400 Bad Request**.
+- Response payload fields match `ScrapLog` naming and types.
