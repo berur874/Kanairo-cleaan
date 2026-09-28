@@ -24,4 +24,5 @@ dist-ssr
 *.sw?
 .env
 ENDPOINTS_GUIDE.md
+WEEK7_WORK_LOG.md
 
