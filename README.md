@@ -1,166 +1,170 @@
-# Kanairo-Klean ♻️
-A digital marketplace platform connecting informal waste collectors, local aggregator yards, and industrial recyclers — bringing price transparency, instant payments, and full material traceability to the waste economy.
+# Kanairo-Klean API
 
-## The Problem
-- **Asymmetric Information** - Collectors sell materials at arbitrary prices due to a lack of market data.
-- **Liquidity Delays** - Independent collectors face significant gaps in receiving payments. 
-- **Unpredictable Supply** - Industrial recyclers suffer from frequent supply shocks.  
-- **Inefficient Brokerage** - The current waste economy relies on manual, inefficient middleman structures.
+Kanairo-Klean connects informal waste collectors, local aggregation yards, and recyclers; this API lets the Artisans App find active material collection locations, check material prices and stock, and report reusable scrap left after a job.
 
-## Our Solution
-- **Price Discovery** - Real-time market rates for PET, HDPE, and E-Waste. 
-- **Verified Inventory** - Digital logging of "Material Hotspots" for real-time tracking.
-- **Instant Settlement** - Automated M-Pesa payouts at the point of weight verification.  
+## Access and authentication
 
+The API currently requires no authentication. Do not send an `Authorization` header. Authentication is not implemented yet; until it is added, the local base URL is `http://localhost:5050`.
 
-## Who it is For
-| Primary Users (Nodes) | Beneficiaries | Industrial Clients | Corporate Clients |
-| :--- | :--- | :--- | :--- |
-| Local aggregators and yard owners who act as digital nodes | Thousands of independent street-level collectors | Recycling plants requiring steady, traceable supply chains | Companies requiring Extended Producer Responsibility (EPR) compliance |
+## Quickstart
 
+Requirements: Node.js, MySQL 8.0, and a MySQL account that can create the `kanairo` database. From a clean clone, run:
 
-## Key Difference
-- **Digital Circular Ledger** — Transforms physical waste into a traceable digital asset.
-- **The "Micro-Hub" Strategy** — Bridges the device gap by using yard owners as proxies for collectors who lack smartphones/data access.
-- **EPR Compliance** — Creates a verified paper trail aligned with current 2026 environmental regulations.
-- **First-Mover Advantage** — Purpose-built compliance tooling aligned with active 2026 EPR standards, combined with a proxy-user model that sidesteps the informal sector's device-access barrier.
-
-
-## Project Structure
-```text
-Kanairo-Klean/
-├── public/
-│   ├── data/
-│   │   └── site-data.json       # Centralized platform static data
-│   └── favicon.ico
-├── src/
-│   ├── components/
-│   │   ├── Header.jsx           # Global SPA Navigation with React Router
-│   │   └── Footer.jsx
-│   ├── css/
-│   │   ├── styles.css           # Global typography, colors & variables
-│   │   ├── dashboard.css        # Scoped CSS grid-shell layouts
-│   │   └── responsive.css       # Layout media queries
-│   ├── hooks/
-│   │   └── useScrollReveal.jsx  # Intersection observer hook for viewport triggers
-│   ├── pages/
-│   │   ├── Home.jsx             # Platform landing page
-│   │   ├── About.jsx            # Platform mission & objectives
-│   │   ├── Compliance.jsx       # EPR compliance tools & details
-│   │   ├── Dashboard.jsx        # Node operator panel (sticky flex-aside layout)
-│   │   └── Marketplace.jsx      # Active listings & pricing interface
-│   ├── utils/
-│   │   └── dataLoader.jsx       # Cached module-level Promise loader for site-data
-│   ├── App.jsx                  # React Router configuration & path mappings
-│   └── main.jsx                 # Vite application entry point
-├── package.json                 # Dependency manifests (React, Router, Recharts, Lucide)
-├── vite.config.js               # Vite compilation profiles
-└── README.md
+```sh
+git clone https://github.com/berur874/Kanairo-cleaan.git
+cd Kanairo-cleaan/server
+npm ci
 ```
 
+Create the local database configuration. In PowerShell, copy the template with:
 
-## Tech Stack & Dependencies
-- **Core Engine:** React 18 / Vite (Single Page Application architecture)
-- **Routing:** `react-router-dom` (Dynamic client-side transitions)
-- **Icons:** `lucide-react` (SVG-based system icons)
-- **Analytics:** `recharts` (Declarative interactive node-dashboard visualizers)
-
-
-## Key Metrics We are Targeting
-- 📈 **Collector Earnings** — Up to 30% increase in income via fair market rates
-- 📦 **Supply Predictability** — Reduced supply shocks for industrial recyclers
-- ✅ **Traceability** — 100% material traceability from collector to plant
-
-
-## Getting Started
-
-### Prerequisites
-Ensure you have [Node.js](https://nodejs.org/) installed on your machine.
-
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone [https://github.com/maishamagicast/Kanairo-Klean.git](https://github.com/maishamagicast/Kanairo-Klean.git)
-   cd Kanairo-Klean
-   ```
-
-2. Install the application dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Spin up the local development server:
-   ```bash
-   npm run dev
-   ```
-
-4. Open the browser and navigate to the local server port provided by Vite (typically `http://localhost:5173`).
-
-
-## Revenue Model
-- **Marketplace Efficiency** — Capturing transactional micro-fees by replacing inefficient manual brokerage structures with a streamlined digital escrow system.
-- **Traceability Data** — Offering enterprise SaaS API access to verified logistics audit logs to fulfill corporate 2026 EPR compliance requirements.
+```powershell
+Copy-Item .env.example .env
 ```
-# Kanairo: localStorage → Supabase migration
 
-## What changed
+On macOS/Linux, use `cp .env.example .env` instead. Edit `.env` in the `server` directory and set `DB_PASSWORD` to the password for your local MySQL account. The template uses `root`; change `DB_USER` too if your MySQL account has another name. Never commit your `.env` file.
 
-Inventory (`kanairo_hotspots`) and transaction receipts (`kanairo_transactions`)
-no longer live in `localStorage`. They're now in your connected Supabase
-project (`fgjcuumoqmlkqrjichtl`), in three tables:
+Create and seed the local database, then start the API:
 
-- **`hotspots`** — `id`, `name`
-- **`hotspot_materials`** — `id`, `hotspot_id` (→ hotspots), `material_name`, `quantity`
-- **`transactions`** — `id` (M-Pesa receipt), `material`, `quantity`, `amount`, `created_at`
+```sh
+npm run db:schema
+npm run db:seed
+npm start
+```
 
-Tables and RLS policies were already created in your project. RLS is on,
-with public read/insert/update policies on all three tables — this is a
-no-auth demo app, so I kept the same open-access model your `localStorage`
-version had (anyone using the app could read/write it client-side either
-way). If you later add user accounts, tighten these policies to scope rows
-per user.
+Keep that terminal open. In a second terminal, run the quickstart request (Windows PowerShell users can use `curl.exe`):
 
-Realtime is enabled on `hotspots` and `hotspot_materials`, so
-`onHotspotsChange` now uses a Supabase Realtime subscription instead of the
-browser's `storage`/custom `window` event — updates now sync **across
-browser tabs and devices**, not just within one tab.
+```sh
+curl -i http://localhost:5050/materials
+```
 
-## Files changed
+The seeded database returns `200 OK` and a JSON array of materials. `npm run db:seed` clears and replaces the local tables, so only run it against a development database whose data can be reset.
 
-- `src/utils/supabaseClient.jsx` — **new.** Creates the Supabase client from env vars.
-- `src/utils/storage.jsx` — rewritten. All functions are now `async` and hit the database:
-  - `getHotspots()` — was sync, now returns a `Promise`
-  - `saveHotspots()` — **removed.** Replaced by the more targeted `addInventory(hotspotName, materialName, quantity)`
-  - `deductInventory()` — same name, now async
-  - `onHotspotsChange()` — now backed by Supabase Realtime
-  - `aggregateInventory()` — unchanged, still a pure function
-- `src/utils/payments.jsx` — `recordTransaction()` is now `async` and writes to the `transactions` table.
-- `src/components/DashboardInventory.jsx` — `MaterialMix`, `InventoryBars`, `LogMaterialForm` updated for the async API. Also fixed an import typo (`marketData.jxs` → `marketData.jsx`) that would have broken the build.
-- `src/pages/Dashboard.jsx` — hotspots are now loaded via `useEffect` instead of a sync `useState` initializer.
-- `src/pages/Marketplace.jsx` — same hotspots fix, plus `handleConfirmMpesa` is now `async` with error handling if the payment/DB write fails.
+## Endpoints
 
-## Setup steps
+All responses use JSON. The examples below were captured from the API using its seeded local database. IDs and timestamps from `POST /scrap-logs` are generated and will differ on each successful request.
 
-1. Install the Supabase client:
-   ```bash
-   npm install @supabase/supabase-js
-   ```
-2. Copy `.env.example` to `.env` in your project root (it's pre-filled with
-   your project's URL and anon/publishable key — safe to expose client-side,
-   that's what RLS policies are for):
-   ```bash
-   cp .env.example .env
-   ```
-3. Drop the updated files into your project at the paths shown above,
-   replacing the existing ones (and adding the new `supabaseClient.jsx`).
-4. Restart your dev server so Vite picks up the new env vars.
+### List active collection locations
 
-## One behavior change worth knowing
+`GET /collection-locations` returns active locations only.
 
-Previously, if no `kanairo_hotspots` key existed in `localStorage`, the app
-seeded itself from `data/site-data.json`'s `defaultHotspots` (see the bottom
-of the old `storage.jsx`). That auto-seed-on-first-load logic was removed —
-since the database is now shared across everyone using the app, it
-shouldn't silently reseed itself. If you want the same "populate demo data
-on first run" behavior, I can add a one-off SQL seed insert instead — just
-say the word.# Kanairo-cleaan
+```sh
+curl http://localhost:5050/collection-locations
+```
+
+```json
+[
+   {"location_id":"1","name":"Dandora","area":"Dandora","is_active":true},
+   {"location_id":"2","name":"Gikomba","area":"Gikomba","is_active":true},
+   {"location_id":"3","name":"Industrial Area","area":"Industrial Area","is_active":true},
+   {"location_id":"6","name":"Eastleigh","area":"Eastleigh","is_active":true},
+   {"location_id":"8","name":"Ruiru","area":"Ruiru","is_active":true}
+]
+```
+
+### List materials and prices
+
+`GET /materials` returns the full catalog.
+
+```sh
+curl http://localhost:5050/materials
+```
+
+```json
+[
+   {"material_id":"ALU","name":"Aluminium","type":"metal","quantity_kg":430,"unit_price_kes":85},
+   {"material_id":"EWASTE","name":"E-Waste","type":"e-waste","quantity_kg":640,"unit_price_kes":120},
+   {"material_id":"GLASS","name":"Clear Glass","type":"glass","quantity_kg":290,"unit_price_kes":8.5},
+   {"material_id":"HDPE","name":"HDPE Plastic","type":"plastic","quantity_kg":1100,"unit_price_kes":35},
+   {"material_id":"PAPER","name":"Cardboard","type":"paper","quantity_kg":3200,"unit_price_kes":12},
+   {"material_id":"PET","name":"PET Plastic","type":"plastic","quantity_kg":2840,"unit_price_kes":28.5}
+]
+```
+
+### Filter materials
+
+Pass `type` and/or `min_quantity_kg` as query parameters. The minimum is inclusive. This example returns aluminum with at least 400 kg in stock:
+
+```sh
+curl "http://localhost:5050/materials?type=metal&min_quantity_kg=400"
+```
+
+```json
+[
+   {"material_id":"ALU","name":"Aluminium","type":"metal","quantity_kg":430,"unit_price_kes":85}
+]
+```
+
+If no materials match, the response is `200 OK` with `[]`.
+
+### Create a leftover-scrap log
+
+`POST /scrap-logs` requires `job_id`, `artisan_id`, `material_type`, and a positive numeric `quantity_kg`. `notes` is optional.
+
+```powershell
+$body = @{
+   job_id = 'docs-example-20261012'
+   artisan_id = 'art-docs'
+   material_type = 'plastic'
+   quantity_kg = 1.25
+   notes = 'README quickstart example'
+} | ConvertTo-Json
+Invoke-RestMethod -Uri 'http://localhost:5050/scrap-logs' -Method Post -ContentType 'application/json' -Body $body
+```
+
+On macOS/Linux, send the same request with curl:
+
+```sh
+curl -i -X POST http://localhost:5050/scrap-logs -H 'Content-Type: application/json' -d '{"job_id":"docs-example-20261012","artisan_id":"art-docs","material_type":"plastic","quantity_kg":1.25,"notes":"README quickstart example"}'
+```
+
+Successful response: `201 Created`.
+
+```json
+{
+   "log_id":"log-0020",
+   "job_id":"docs-example-20261012",
+   "artisan_id":"art-docs",
+   "material_type":"plastic",
+   "quantity_kg":1.25,
+   "notes":"README quickstart example",
+   "logged_at":"2026-10-12T11:29:29.000Z"
+}
+```
+
+The response above is an actual successful response; its generated `log_id` and `logged_at` will differ from your request. The example request creates a new row in the local database each time.
+
+## Error responses
+
+Invalid scrap-log input returns `400 Bad Request` with a `code` and `message`:
+
+```http
+POST /scrap-logs
+Content-Type: application/json
+```
+
+```json
+{"code":400,"message":"job_id, artisan_id, material_type and quantity_kg are required"}
+```
+
+An unknown route returns `404 Not Found` in the same format:
+
+```json
+{"code":404,"message":"Route GET /unknown not found"}
+```
+
+Malformed JSON also returns `code` and `message`. Database failures return `500` with an `error` field. A valid catalog filter with no matches is not an error; it returns `200` and `[]`.
+
+## API contract
+
+See [`openapi.yaml`](openapi.yaml) for the OpenAPI 3.0 contract, including request and response schemas.
+
+## Optional: run the web client
+
+The API and Vite client run separately. To start the client in another terminal:
+
+```sh
+cd client
+npm ci
+npm run dev
+```
