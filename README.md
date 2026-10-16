@@ -66,11 +66,11 @@ The seeded database returns `200 OK` and a JSON array of materials. `npm run db:
 
 ## Endpoints
 
-All responses use JSON. The examples below were captured from the API using its seeded local database. IDs and timestamps from `POST /scrap-logs` are generated and will differ on each successful request.
+All responses use JSON. The examples below were captured from the API using its seeded local database. IDs and timestamps from `POST` requests are generated and will differ on each successful request.
 
 ### List active collection locations
 
-`GET /collection-locations` returns active locations only.
+`GET /collection-locations` returns active locations only, so `is_active` is always `true`. Each location has a `county`; most are in Nairobi.
 
 ```sh
 curl -H "Authorization: Bearer $TOKEN" http://localhost:5050/collection-locations
@@ -78,17 +78,17 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:5050/collection-location
 
 ```json
 [
-   {"location_id":"1","name":"Dandora","area":"Dandora","is_active":true},
-   {"location_id":"2","name":"Gikomba","area":"Gikomba","is_active":true},
-   {"location_id":"3","name":"Industrial Area","area":"Industrial Area","is_active":true},
-   {"location_id":"6","name":"Eastleigh","area":"Eastleigh","is_active":true},
-   {"location_id":"8","name":"Ruiru","area":"Ruiru","is_active":true}
+   {"location_id":"1","name":"Dandora","area":"Dandora","county":"Nairobi","is_active":true},
+   {"location_id":"2","name":"Gikomba","area":"Gikomba","county":"Nairobi","is_active":true},
+   {"location_id":"3","name":"Industrial Area","area":"Industrial Area","county":"Nairobi","is_active":true},
+   {"location_id":"6","name":"Eastleigh","area":"Eastleigh","county":"Nairobi","is_active":true},
+   {"location_id":"8","name":"Ruiru","area":"Ruiru","county":"Kiambu","is_active":true}
 ]
 ```
 
 ### List materials and prices
 
-`GET /materials` returns the full catalog.
+`GET /materials` returns the full catalog. `unit_price_kes` is the price in KES per kg. `type` is always one of `metal`, `plastic`, `paper`, `glass` or `e-waste`.
 
 ```sh
 curl -H "Authorization: Bearer $TOKEN" http://localhost:5050/materials
@@ -107,7 +107,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:5050/materials
 
 ### Filter materials
 
-Pass `type` and/or `min_quantity_kg` as query parameters. The minimum is inclusive. This example returns aluminum with at least 400 kg in stock:
+Pass `type` and/or `min_quantity_kg` as query parameters. `type` must be one of the five types above. `min_quantity_kg` must be a number of 0 or more and is inclusive. Anything else returns `400` (see [Error responses](#error-responses)). This example returns aluminum with at least 400 kg in stock:
 
 ```sh
 curl -H "Authorization: Bearer $TOKEN" "http://localhost:5050/materials?type=metal&min_quantity_kg=400"
@@ -119,11 +119,53 @@ curl -H "Authorization: Bearer $TOKEN" "http://localhost:5050/materials?type=met
 ]
 ```
 
-If no materials match, the response is `200 OK` with `[]`.
+If valid filters match no materials, the response is `200 OK` with `[]`.
 
-### Create a leftover-scrap log
+### Report a scrap drop-off
 
-`POST /scrap-logs` requires `job_id`, `artisan_id`, `material_type`, and a positive numeric `quantity_kg`. `notes` is optional.
+`POST /collection-locations/{location_id}/drop-offs` records leftover scrap brought to one of the locations above. Use a `location_id` from `GET /collection-locations`. The body needs:
+
+- `material_type`: one of `metal`, `plastic`, `paper`, `glass` or `e-waste`
+- `quantity_kg`: a number above 0
+- `source`: text saying who is dropping it off, up to 120 characters
+- `notes`: optional text
+
+```powershell
+$body = @{
+   material_type = 'metal'
+   quantity_kg = 12.5
+   source = 'README example: electrical job in Embakasi'
+   notes = 'Offcut copper wiring and brass fittings.'
+} | ConvertTo-Json
+Invoke-RestMethod -Uri 'http://localhost:5050/collection-locations/1/drop-offs' -Method Post -Headers @{ Authorization = "Bearer $TOKEN" } -ContentType 'application/json' -Body $body
+```
+
+On macOS/Linux, send the same request with curl:
+
+```sh
+curl -i -X POST http://localhost:5050/collection-locations/1/drop-offs -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"material_type":"metal","quantity_kg":12.5,"source":"README example: electrical job in Embakasi","notes":"Offcut copper wiring and brass fittings."}'
+```
+
+Successful response: `201 Created`. New drop-offs are `pending` until our staff receive them.
+
+```json
+{
+   "drop_off_id":"drop-0005",
+   "location_id":"1",
+   "material_type":"metal",
+   "quantity_kg":12.5,
+   "source":"README example: electrical job in Embakasi",
+   "notes":"Offcut copper wiring and brass fittings.",
+   "status":"pending",
+   "created_at":"2026-10-16T09:00:51.000Z"
+}
+```
+
+Your `drop_off_id` and `created_at` will differ. An unknown or inactive location returns `404`.
+
+### Create a leftover-scrap log (deprecated)
+
+`POST /scrap-logs` is deprecated as of contract 1.1.0. Use drop-offs above instead. It still works for now and requires `job_id`, `artisan_id`, `material_type`, and a positive numeric `quantity_kg`. `notes` is optional.
 
 ```powershell
 $body = @{
@@ -170,28 +212,53 @@ curl -i http://localhost:5050/materials
 {"code":401,"message":"Missing or invalid API token"}
 ```
 
-Invalid scrap-log input returns `400 Bad Request` with a `code` and `message`:
+Invalid input returns `400 Bad Request` with a `code` and `message`. A drop-off with only `material_type` in the body:
 
-```http
-POST /scrap-logs
-Content-Type: application/json
+```sh
+curl -i -X POST http://localhost:5050/collection-locations/1/drop-offs -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"material_type":"metal"}'
 ```
 
 ```json
-{"code":400,"message":"job_id, artisan_id, material_type and quantity_kg are required"}
+{"code":400,"message":"material_type, quantity_kg and source are required"}
 ```
 
-An unknown route returns `404 Not Found` in the same format:
+Invalid catalog filters return `400` too:
+
+```sh
+curl -i -H "Authorization: Bearer $TOKEN" "http://localhost:5050/materials?type=scrap_metal"
+```
+
+```json
+{"code":400,"message":"type must be one of: metal, plastic, paper, glass, e-waste"}
+```
+
+```sh
+curl -i -H "Authorization: Bearer $TOKEN" "http://localhost:5050/materials?min_quantity_kg=abc"
+```
+
+```json
+{"code":400,"message":"min_quantity_kg must be a number greater than or equal to 0"}
+```
+
+A drop-off to an unknown or inactive location returns `404 Not Found`:
+
+```json
+{"code":404,"message":"Collection location 99 not found"}
+```
+
+An unknown route also returns `404` in the same format:
 
 ```json
 {"code":404,"message":"Route GET /unknown not found"}
 ```
 
-Malformed JSON also returns `code` and `message`. Database failures return `500` with an `error` field. A valid catalog filter with no matches is not an error; it returns `200` and `[]`.
+Malformed JSON also returns `code` and `message`. Database failures return `500` with an `error` field. Valid catalog filters with no matches are not an error; they return `200` and `[]`.
 
 ## API contract
 
-See [`openapi.yaml`](openapi.yaml) for the OpenAPI 3.0 contract, including request and response schemas.
+See [`openapi.yaml`](openapi.yaml) for the OpenAPI 3.0 contract (version 1.1.0), including request and response schemas.
+
+If you set up a database before version 1.1.0, run `npm run db:schema` in `server` again. It adds the new `county` column and `drop_offs` table without deleting data.
 
 ## Optional: run the web client
 
