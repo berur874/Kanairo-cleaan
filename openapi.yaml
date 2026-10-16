@@ -30,17 +30,17 @@ paths:
         - name: type
           in: query
           required: false
-          description: Filter by material category (e.g., scrap_metal, plastic, wood).
+          description: Filter by material type. Must be one of the MaterialType values; any other value returns 400.
           schema:
-            type: string
-            example: "scrap_metal"
+            $ref: '#/components/schemas/MaterialType'
         - name: min_quantity_kg
           in: query
           required: false
-          description: Filter materials available in quantities greater than or equal to this value (in kg).
+          description: Filter materials available in quantities greater than or equal to this value (in kg). Must be a number >= 0; anything else returns 400.
           schema:
             type: number
             format: float
+            minimum: 0
             example: 50.0
       responses:
         '200':
@@ -51,6 +51,15 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Material'
+        '400':
+          description: Invalid filter, e.g. an unknown type or a negative or non-numeric min_quantity_kg.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 400
+                message: 'type must be one of: metal, plastic, paper, glass, e-waste'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -97,6 +106,12 @@ components:
             code: 401
             message: Missing or invalid API token
   schemas:
+    MaterialType:
+      type: string
+      description: The fixed list of material types. Used by Material.type, the GET /materials type filter, and drop-off material_type.
+      enum: [metal, plastic, paper, glass, e-waste]
+      example: metal
+
     CollectionLocation:
       type: object
       required:
@@ -134,8 +149,7 @@ components:
           type: string
           example: "Aluminum Scrap Headers"
         type:
-          type: string
-          example: "scrap_metal"
+          $ref: '#/components/schemas/MaterialType'
         quantity_kg:
           type: number
           format: float
@@ -143,6 +157,7 @@ components:
         unit_price_kes:
           type: number
           format: float
+          description: Price in KES per kg.
           example: 150.00
 
     ScrapLogInput:
@@ -161,7 +176,7 @@ components:
           example: "art-302"
         material_type:
           type: string
-          example: "scrap_metal"
+          example: "metal"
         quantity_kg:
           type: number
           format: float
@@ -191,7 +206,7 @@ components:
           example: "art-302"
         material_type:
           type: string
-          example: "scrap_metal"
+          example: "metal"
         quantity_kg:
           type: number
           format: float

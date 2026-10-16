@@ -40,6 +40,9 @@ function buildBadRequest(res, message) {
   return res.status(400).json({ code: 400, message });
 }
 
+// The fixed list of material types published in openapi.yaml (Material.type enum).
+const MATERIAL_TYPES = ['metal', 'plastic', 'paper', 'glass', 'e-waste'];
+
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -61,10 +64,20 @@ function requireApiToken(req, res, next) {
 //To be used by group one — response shaped to match openapi.yaml Material schema exactly
 app.get('/materials', requireApiToken, async (req, res) => {
   const { type, min_quantity_kg } = req.query;
+
+  if (type !== undefined && !MATERIAL_TYPES.includes(type)) {
+    return buildBadRequest(res, `type must be one of: ${MATERIAL_TYPES.join(', ')}`);
+  }
+
+  const minQuantity = Number(min_quantity_kg);
+  if (min_quantity_kg !== undefined && (typeof min_quantity_kg !== 'string' || min_quantity_kg.trim() === '' || !Number.isFinite(minQuantity) || minQuantity < 0)) {
+    return buildBadRequest(res, 'min_quantity_kg must be a number greater than or equal to 0');
+  }
+
   let sql = 'SELECT id, name, type, price, stock_kg FROM materials WHERE 1=1';
   const params = [];
-  if (type) { sql += ' AND type = ?'; params.push(type); }
-  if (min_quantity_kg) { sql += ' AND stock_kg >= ?'; params.push(min_quantity_kg); }
+  if (type !== undefined) { sql += ' AND type = ?'; params.push(type); }
+  if (min_quantity_kg !== undefined) { sql += ' AND stock_kg >= ?'; params.push(minQuantity); }
 
   try {
     const [rows] = await pool.query(sql, params);

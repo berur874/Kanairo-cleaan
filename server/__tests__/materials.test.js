@@ -82,11 +82,34 @@ describe('GET /materials', () => {
   });
 
   // Not-found: the contract has no /materials/{id}, so "not found" means a filter that matches nothing.
-  it('returns 200 with an empty array for a type that does not exist', async () => {
-    const res = await request(app).get('/materials').set(AUTH).query({ type: 'no_such_type_xyz' });
+  it('returns 400 with an Error body for a type outside the published list', async () => {
+    const res = await request(app).get('/materials').set(AUTH).query({ type: 'scrap_metal' });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('code', 400);
+    expect(res.body.message).toMatch(/metal, plastic, paper, glass, e-waste/);
+  });
+
+  it('only returns types from the published list', async () => {
+    const res = await request(app).get('/materials').set(AUTH);
+
+    res.body.forEach((m) => expect(['metal', 'plastic', 'paper', 'glass', 'e-waste']).toContain(m.type));
+  });
+
+  it.each(['abc', '-5', '', '10kg'])('returns 400 for min_quantity_kg=%p', async (value) => {
+    const res = await request(app).get('/materials').set(AUTH).query({ min_quantity_kg: value });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('code', 400);
+    expect(typeof res.body.message).toBe('string');
+  });
+
+  it('accepts min_quantity_kg=0 and returns every material', async () => {
+    const all = await request(app).get('/materials').set(AUTH);
+    const res = await request(app).get('/materials').set(AUTH).query({ min_quantity_kg: 0 });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body).toHaveLength(all.body.length);
   });
 
   it('returns 200 with an empty array when min_quantity_kg exceeds all stock', async () => {
