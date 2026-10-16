@@ -5,6 +5,7 @@
 USE kanairo;
 
 SET FOREIGN_KEY_CHECKS = 0;
+TRUNCATE TABLE drop_offs;
 TRUNCATE TABLE scrap_logs;
 TRUNCATE TABLE hotspot_materials;
 TRUNCATE TABLE transactions;

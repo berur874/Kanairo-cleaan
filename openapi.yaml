@@ -63,10 +63,57 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /collection-locations/{location_id}/drop-offs:
+    post:
+      summary: Report leftover scrap dropped off at a collection location
+      description: Record reusable leftover scrap brought to one of our active collection locations. New drop-offs start as pending. Replaces POST /scrap-logs.
+      parameters:
+        - name: location_id
+          in: path
+          required: true
+          description: A location_id from GET /collection-locations.
+          schema:
+            type: string
+            example: "1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DropOffInput'
+      responses:
+        '201':
+          description: Drop-off recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DropOff'
+        '400':
+          description: Missing or invalid field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 400
+                message: material_type, quantity_kg and source are required
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No active collection location has this location_id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 404
+                message: Collection location 99 not found
+
   /scrap-logs:
     post:
-      summary: Create leftover scrap log entry
-      description: Submit a log entry reporting reusable leftover scrap material after a job is completed.
+      deprecated: true
+      summary: Create leftover scrap log entry (deprecated)
+      description: Deprecated in 1.1.0; use POST /collection-locations/{location_id}/drop-offs instead. Still accepted until consumers have moved over.
       requestBody:
         required: true
         content:
@@ -164,6 +211,72 @@ components:
           format: float
           description: Price in KES per kg.
           example: 150.00
+
+    DropOffInput:
+      type: object
+      required:
+        - material_type
+        - quantity_kg
+        - source
+      properties:
+        material_type:
+          $ref: '#/components/schemas/MaterialType'
+        quantity_kg:
+          type: number
+          format: float
+          exclusiveMinimum: true
+          minimum: 0
+          example: 12.5
+        source:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Free text saying who is dropping off the scrap. Not validated against any id.
+          example: "Find My Artisan, electrical job in Embakasi"
+        notes:
+          type: string
+          minLength: 1
+          example: "Offcut copper wiring and brass fittings."
+
+    DropOff:
+      type: object
+      required:
+        - drop_off_id
+        - location_id
+        - material_type
+        - quantity_kg
+        - source
+        - status
+        - created_at
+      properties:
+        drop_off_id:
+          type: string
+          example: "drop-0001"
+        location_id:
+          type: string
+          example: "1"
+        material_type:
+          $ref: '#/components/schemas/MaterialType'
+        quantity_kg:
+          type: number
+          format: float
+          example: 12.5
+        source:
+          type: string
+          example: "Find My Artisan, electrical job in Embakasi"
+        notes:
+          type: string
+          description: Present only when notes were sent.
+          example: "Offcut copper wiring and brass fittings."
+        status:
+          type: string
+          enum: [pending, received]
+          description: New drop-offs are pending until Kanairo-Klean staff receive them.
+          example: pending
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-10-16T10:30:00Z"
 
     ScrapLogInput:
       type: object

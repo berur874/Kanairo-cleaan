@@ -135,6 +135,62 @@ app.get('/collection-locations/showcase', async (req, res) => {
   }
 });
 
+// Replaces POST /scrap-logs for consumers: the drop-off is tied to a location we own, and the caller
+// identifies itself with free-text `source` instead of its own job/artisan ids.
+app.post('/collection-locations/:location_id/drop-offs', requireApiToken, async (req, res) => {
+  const { location_id } = req.params;
+  const { material_type, quantity_kg, source, notes } = req.body;
+
+  try {
+    const [[location]] = /^\d+$/.test(location_id)
+      ? await pool.query('SELECT id FROM hotspots WHERE id = ? AND active = 1', [location_id])
+      : [[]];
+    if (!location) {
+      return res.status(404).json({ code: 404, message: `Collection location ${location_id} not found` });
+    }
+
+    if (material_type === undefined || quantity_kg === undefined || source === undefined) {
+      return buildBadRequest(res, 'material_type, quantity_kg and source are required');
+    }
+    if (!MATERIAL_TYPES.includes(material_type)) {
+      return buildBadRequest(res, `material_type must be one of: ${MATERIAL_TYPES.join(', ')}`);
+    }
+    if (typeof quantity_kg !== 'number' || !Number.isFinite(quantity_kg) || quantity_kg <= 0) {
+      return buildBadRequest(res, 'quantity_kg must be a positive number');
+    }
+    if (!isNonEmptyString(source) || source.trim().length > 120) {
+      return buildBadRequest(res, 'source must be a non-empty string of at most 120 characters');
+    }
+    if (notes !== undefined && !isNonEmptyString(notes)) {
+      return buildBadRequest(res, 'notes must be a non-empty string when provided');
+    }
+
+    const [result] = await pool.query(
+      'INSERT INTO drop_offs (hotspot_id, material_type, quantity_kg, source, notes) VALUES (?, ?, ?, ?, ?)',
+      [location.id, material_type, quantity_kg, source.trim(), notes ? notes.trim() : null]
+    );
+    await pool.query(
+      `UPDATE drop_offs SET drop_off_id = CONCAT('drop-', LPAD(id, 4, '0')) WHERE id = ?`,
+      [result.insertId]
+    );
+
+    const [[saved]] = await pool.query('SELECT * FROM drop_offs WHERE id = ?', [result.insertId]);
+
+    res.status(201).json({
+      drop_off_id: saved.drop_off_id,
+      location_id: String(saved.hotspot_id),
+      material_type: saved.material_type,
+      quantity_kg: Number(saved.quantity_kg),
+      source: saved.source,
+      notes: saved.notes || undefined,
+      status: saved.status,
+      created_at: new Date(saved.created_at).toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/scrap-logs', requireApiToken, async (req, res) => {
   const { job_id, artisan_id, material_type, quantity_kg, notes } = req.body;
 
