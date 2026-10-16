@@ -4,7 +4,26 @@ Kanairo-Klean connects informal waste collectors, local aggregation yards, and r
 
 ## Access and authentication
 
-The API currently requires no authentication. Do not send an `Authorization` header. Authentication is not implemented yet; until it is added, the local base URL is `http://localhost:5050`.
+Every endpoint requires an API token sent as a Bearer token:
+
+```http
+Authorization: Bearer <your-api-token>
+```
+
+- **Calling our hosted API:** ask the Kanairo-Klean team for a token. Tokens are shared privately and are never committed to this repo.
+- **Running the API yourself:** you choose the token. It is the `API_TOKEN` value in `server/.env` (see Quickstart).
+
+Requests without a valid token get `401 Unauthorized` (see [Error responses](#error-responses)). The local base URL is `http://localhost:5050`.
+
+The examples below use `$TOKEN` as a placeholder. Set it once per terminal before copying them:
+
+```sh
+TOKEN=your-api-token            # macOS/Linux
+```
+
+```powershell
+$TOKEN = 'your-api-token'       # Windows PowerShell
+```
 
 ## Quickstart
 
@@ -22,7 +41,12 @@ Create the local database configuration. In PowerShell, copy the template with:
 Copy-Item .env.example .env
 ```
 
-On macOS/Linux, use `cp .env.example .env` instead. Edit `.env` in the `server` directory and set `DB_PASSWORD` to the password for your local MySQL account. The template uses `root`; change `DB_USER` too if your MySQL account has another name. Never commit your `.env` file.
+On macOS/Linux, use `cp .env.example .env` instead. Edit `.env` in the `server` directory:
+
+- Set `DB_PASSWORD` to the password for your local MySQL account. The template uses `root`; change `DB_USER` too if your MySQL account has another name.
+- Set `API_TOKEN` to any long random string. This is the token callers must send. The API will not start without it.
+
+Never commit your `.env` file.
 
 Create and seed the local database, then start the API:
 
@@ -32,10 +56,10 @@ npm run db:seed
 npm start
 ```
 
-Keep that terminal open. In a second terminal, run the quickstart request (Windows PowerShell users can use `curl.exe`):
+Keep that terminal open. In a second terminal, set `TOKEN` to the same value as `API_TOKEN` (see [Access and authentication](#access-and-authentication)), then run the quickstart request (Windows PowerShell users can use `curl.exe`):
 
 ```sh
-curl -i http://localhost:5050/materials
+curl -i -H "Authorization: Bearer $TOKEN" http://localhost:5050/materials
 ```
 
 The seeded database returns `200 OK` and a JSON array of materials. `npm run db:seed` clears and replaces the local tables, so only run it against a development database whose data can be reset.
@@ -49,7 +73,7 @@ All responses use JSON. The examples below were captured from the API using its 
 `GET /collection-locations` returns active locations only.
 
 ```sh
-curl http://localhost:5050/collection-locations
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5050/collection-locations
 ```
 
 ```json
@@ -67,7 +91,7 @@ curl http://localhost:5050/collection-locations
 `GET /materials` returns the full catalog.
 
 ```sh
-curl http://localhost:5050/materials
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5050/materials
 ```
 
 ```json
@@ -86,7 +110,7 @@ curl http://localhost:5050/materials
 Pass `type` and/or `min_quantity_kg` as query parameters. The minimum is inclusive. This example returns aluminum with at least 400 kg in stock:
 
 ```sh
-curl "http://localhost:5050/materials?type=metal&min_quantity_kg=400"
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:5050/materials?type=metal&min_quantity_kg=400"
 ```
 
 ```json
@@ -109,13 +133,13 @@ $body = @{
    quantity_kg = 1.25
    notes = 'README quickstart example'
 } | ConvertTo-Json
-Invoke-RestMethod -Uri 'http://localhost:5050/scrap-logs' -Method Post -ContentType 'application/json' -Body $body
+Invoke-RestMethod -Uri 'http://localhost:5050/scrap-logs' -Method Post -Headers @{ Authorization = "Bearer $TOKEN" } -ContentType 'application/json' -Body $body
 ```
 
 On macOS/Linux, send the same request with curl:
 
 ```sh
-curl -i -X POST http://localhost:5050/scrap-logs -H 'Content-Type: application/json' -d '{"job_id":"docs-example-20261012","artisan_id":"art-docs","material_type":"plastic","quantity_kg":1.25,"notes":"README quickstart example"}'
+curl -i -X POST http://localhost:5050/scrap-logs -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"job_id":"docs-example-20261012","artisan_id":"art-docs","material_type":"plastic","quantity_kg":1.25,"notes":"README quickstart example"}'
 ```
 
 Successful response: `201 Created`.
@@ -135,6 +159,16 @@ Successful response: `201 Created`.
 The response above is an actual successful response; its generated `log_id` and `logged_at` will differ from your request. The example request creates a new row in the local database each time.
 
 ## Error responses
+
+A missing, wrong, or non-Bearer token returns `401 Unauthorized`:
+
+```sh
+curl -i http://localhost:5050/materials
+```
+
+```json
+{"code":401,"message":"Missing or invalid API token"}
+```
 
 Invalid scrap-log input returns `400 Bad Request` with a `code` and `message`:
 
