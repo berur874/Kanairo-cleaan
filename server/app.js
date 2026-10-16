@@ -97,11 +97,12 @@ app.get('/materials', requireApiToken, async (req, res) => {
 //To be used by group one — response shaped to match openapi.yaml CollectionLocation schema exactly
 app.get('/collection-locations', requireApiToken, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, name, area, active FROM hotspots WHERE active = 1');
+    const [rows] = await pool.query('SELECT id, name, area, county, active FROM hotspots WHERE active = 1');
     const locations = rows.map((row) => ({
       location_id: String(row.id),
       name: row.name,
       area: row.area,
+      county: row.county,
       is_active: Boolean(row.active),
     }));
     res.json(locations);

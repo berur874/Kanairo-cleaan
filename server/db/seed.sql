@@ -20,15 +20,15 @@ INSERT INTO materials (id, name, type, price, unit, change_pct, trend, stock_kg)
   ('PAPER', 'Cardboard', 'paper', 12.00, 'KES/kg', -0.40, 'down', 3200),
   ('PET', 'PET Plastic', 'plastic', 28.50, 'KES/kg', 2.30, 'up', 2840);
 
-INSERT INTO hotspots (name, area, primary_material_id, activity, stock_kg, active) VALUES
-  ('Dandora', 'Dandora', 'PET', 94, 2840, 1),
-  ('Gikomba', 'Gikomba', 'PAPER', 78, 1920, 1),
-  ('Industrial Area', 'Industrial Area', 'EWASTE', 87, 640, 1),
-  ('Kibera', 'Kibera', 'ALU', 40, 430, 0),
-  ('Westlands', 'Westlands', 'GLASS', 35, 290, 0),
-  ('Eastleigh', 'Eastleigh', 'ALU', 60, 430, 1),
-  ('Karen', 'Karen', 'GLASS', 20, 290, 0),
-  ('Ruiru', 'Ruiru', 'PAPER', 70, 3200, 1);
+INSERT INTO hotspots (name, area, county, primary_material_id, activity, stock_kg, active) VALUES
+  ('Dandora', 'Dandora', 'Nairobi', 'PET', 94, 2840, 1),
+  ('Gikomba', 'Gikomba', 'Nairobi', 'PAPER', 78, 1920, 1),
+  ('Industrial Area', 'Industrial Area', 'Nairobi', 'EWASTE', 87, 640, 1),
+  ('Kibera', 'Kibera', 'Nairobi', 'ALU', 40, 430, 0),
+  ('Westlands', 'Westlands', 'Nairobi', 'GLASS', 35, 290, 0),
+  ('Eastleigh', 'Eastleigh', 'Nairobi', 'ALU', 60, 430, 1),
+  ('Karen', 'Karen', 'Nairobi', 'GLASS', 20, 290, 0),
+  ('Ruiru', 'Ruiru', 'Kiambu', 'PAPER', 70, 3200, 1);
 
 INSERT INTO hotspot_materials (hotspot_id, material_name, quantity) VALUES
   (1, 'PET Plastic', 2840),

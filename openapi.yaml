@@ -9,7 +9,7 @@ paths:
   /collection-locations:
     get:
       summary: List collection and drop-off hotspots
-      description: Retrieve active second-hand/raw material collection locations where artisans can pick up materials.
+      description: Retrieve collection locations where artisans can pick up materials. Only active locations are returned, so is_active is always true in this list. Inactive locations never appear here, and drop-offs to them return 404.
       responses:
         '200':
           description: A list of active collection hotspots.
@@ -118,17 +118,22 @@ components:
         - location_id
         - name
         - area
+        - county
         - is_active
       properties:
         location_id:
           type: string
-          example: "loc-001"
+          example: "1"
         name:
           type: string
-          example: "Gikomba Sorting Depot"
+          example: "Gikomba"
         area:
           type: string
           example: "Kamukunji"
+        county:
+          type: string
+          description: Kenyan county the location is in. Most locations are in Nairobi; some (e.g. Ruiru) are in neighbouring counties.
+          example: "Nairobi"
         is_active:
           type: boolean
           example: true

@@ -3,7 +3,7 @@ const { app, pool } = require('../app');
 
 const AUTH = { Authorization: `Bearer ${process.env.API_TOKEN}` };
 
-const LOCATION_FIELDS = ['location_id', 'name', 'area', 'is_active'].sort();
+const LOCATION_FIELDS = ['location_id', 'name', 'area', 'county', 'is_active'].sort();
 
 afterAll(() => pool.end());
 
@@ -20,6 +20,8 @@ describe('GET /collection-locations', () => {
       expect(typeof loc.location_id).toBe('string');
       expect(typeof loc.name).toBe('string');
       expect(typeof loc.area).toBe('string');
+      expect(typeof loc.county).toBe('string');
+      expect(loc.county.length).toBeGreaterThan(0);
       expect(typeof loc.is_active).toBe('boolean');
     });
   });
@@ -36,6 +38,14 @@ describe('GET /collection-locations', () => {
     const ids = res.body.map((loc) => loc.location_id);
 
     inactive.forEach((row) => expect(ids).not.toContain(String(row.id)));
+  });
+
+  it('returns the county stored for each location', async () => {
+    const [rows] = await pool.query('SELECT id, county FROM hotspots WHERE active = 1');
+    const res = await request(app).get('/collection-locations').set(AUTH);
+    const byId = Object.fromEntries(res.body.map((loc) => [loc.location_id, loc.county]));
+
+    rows.forEach((row) => expect(byId[String(row.id)]).toBe(row.county));
   });
 
   it('returns unique location_ids', async () => {

@@ -68,10 +68,38 @@ async function ensureScrapLogsColumns() {
   }
 }
 
+// Databases created before hotspots.county existed get the column, and the seeded Ruiru row is moved to Kiambu.
+async function ensureHotspotCounty() {
+  const connection = await mysql.createConnection({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+  });
+
+  try {
+    const [rows] = await connection.query(
+      `SELECT 1
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'hotspots' AND COLUMN_NAME = 'county'`,
+      [process.env.DB_NAME]
+    );
+
+    if (rows.length === 0) {
+      await connection.query(`ALTER TABLE hotspots ADD COLUMN county varchar(50) NOT NULL DEFAULT 'Nairobi' AFTER area`);
+      await connection.query(`UPDATE hotspots SET county = 'Kiambu' WHERE area = 'Ruiru'`);
+      console.log('Added hotspots.county');
+    }
+  } finally {
+    await connection.end();
+  }
+}
+
 const target = process.argv[2];
 if (target === 'schema') {
   run('schema.sql', { withDatabase: false })
     .then(() => ensureScrapLogsColumns())
+    .then(() => ensureHotspotCounty())
     .catch((err) => { console.error(err); process.exit(1); });
 } else if (target === 'seed') {
   run('seed.sql').catch((err) => { console.error(err); process.exit(1); });

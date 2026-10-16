@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS hotspots (
   id int NOT NULL AUTO_INCREMENT,
   name varchar(100) NOT NULL,
   area varchar(100) DEFAULT NULL,
+  county varchar(50) NOT NULL DEFAULT 'Nairobi',
   primary_material_id varchar(20) DEFAULT NULL,
   activity int DEFAULT '0',
   stock_kg int DEFAULT '0',
