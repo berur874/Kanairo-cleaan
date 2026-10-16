@@ -3,6 +3,8 @@ info:
   title: Kanairo-Klean Provider API
   description: API contract provided by Kanairo-Klean (Team 13) for Group 1 (Artisans App) to source raw materials and log scrap.
   version: 1.0.0
+security:
+  - bearerAuth: []
 paths:
   /collection-locations:
     get:
@@ -17,6 +19,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/CollectionLocation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /materials:
     get:
@@ -47,6 +51,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Material'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /scrap-logs:
     post:
@@ -71,8 +77,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: 'Send the API token issued by Kanairo-Klean as "Authorization: Bearer <token>".'
+  responses:
+    Unauthorized:
+      description: Missing or invalid API token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 401
+            message: Missing or invalid API token
   schemas:
     CollectionLocation:
       type: object
