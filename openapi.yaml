@@ -2,7 +2,12 @@ openapi: 3.0.0
 info:
   title: Kanairo-Klean Provider API
   description: API contract provided by Kanairo-Klean (Team 13) for Group 1 (Artisans App) to source raw materials and log scrap.
-  version: 1.0.0
+  version: 1.1.0
+servers:
+  - url: http://localhost:5050
+    description: Local development (see README for setup)
+  - url: https://supervoluminous-vikki-unsurlily.ngrok-free.dev
+    description: Hosted for partner testing. Only up while the Kanairo-Klean team is running it.
 security:
   - bearerAuth: []
 paths:
