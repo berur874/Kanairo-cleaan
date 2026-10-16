@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
+const crypto = require('crypto');
 
 const app = express();
 
@@ -43,8 +44,22 @@ function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function sha256(value) {
+  return crypto.createHash('sha256').update(value).digest();
+}
+
+// Contract routes require "Authorization: Bearer <API_TOKEN>". Fails closed if API_TOKEN is unset.
+function requireApiToken(req, res, next) {
+  const expected = process.env.API_TOKEN;
+  const [scheme, token] = (req.get('Authorization') || '').split(' ');
+  if (!expected || scheme !== 'Bearer' || !token || !crypto.timingSafeEqual(sha256(token), sha256(expected))) {
+    return res.status(401).json({ code: 401, message: 'Missing or invalid API token' });
+  }
+  next();
+}
+
 //To be used by group one — response shaped to match openapi.yaml Material schema exactly
-app.get('/materials', async (req, res) => {
+app.get('/materials', requireApiToken, async (req, res) => {
   const { type, min_quantity_kg } = req.query;
   let sql = 'SELECT id, name, type, price, stock_kg FROM materials WHERE 1=1';
   const params = [];
@@ -67,7 +82,7 @@ app.get('/materials', async (req, res) => {
 });
 
 //To be used by group one — response shaped to match openapi.yaml CollectionLocation schema exactly
-app.get('/collection-locations', async (req, res) => {
+app.get('/collection-locations', requireApiToken, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT id, name, area, active FROM hotspots WHERE active = 1');
     const locations = rows.map((row) => ({
@@ -106,7 +121,7 @@ app.get('/collection-locations/showcase', async (req, res) => {
   }
 });
 
-app.post('/scrap-logs', async (req, res) => {
+app.post('/scrap-logs', requireApiToken, async (req, res) => {
   const { job_id, artisan_id, material_type, quantity_kg, notes } = req.body;
 
   if (job_id === undefined || artisan_id === undefined || material_type === undefined || quantity_kg === undefined) {

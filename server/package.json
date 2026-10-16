@@ -9,6 +9,9 @@
     "db:schema": "node db/migrate.js schema",
     "db:seed": "node db/migrate.js seed"
   },
+  "jest": {
+    "setupFiles": ["<rootDir>/jest.setup.js"]
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
