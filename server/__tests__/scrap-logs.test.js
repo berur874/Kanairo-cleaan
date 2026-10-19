@@ -1,6 +1,8 @@
 const request = require('supertest');
 const { app, pool, ensureScrapLogsSchema } = require('../app');
 
+const AUTH = { Authorization: `Bearer ${process.env.API_TOKEN}` };
+
 const TEST_JOB_PREFIX = 'jest-job-';
 const validPayload = () => ({
   job_id: `${TEST_JOB_PREFIX}${Date.now()}`,
@@ -29,7 +31,7 @@ function expectError(res) {
 describe('POST /scrap-logs — happy path', () => {
   it('creates a log and returns 201 with the exact ScrapLog schema', async () => {
     const payload = validPayload();
-    const res = await request(app).post('/scrap-logs').send(payload);
+    const res = await request(app).post('/scrap-logs').set(AUTH).send(payload);
 
     expect(res.status).toBe(201);
     expect(Object.keys(res.body).sort()).toEqual(
@@ -48,7 +50,7 @@ describe('POST /scrap-logs — happy path', () => {
 
   it('actually persists the row, including the returned log_id', async () => {
     const payload = validPayload();
-    const res = await request(app).post('/scrap-logs').send(payload);
+    const res = await request(app).post('/scrap-logs').set(AUTH).send(payload);
 
     const [rows] = await pool.query('SELECT * FROM scrap_logs WHERE log_id = ?', [res.body.log_id]);
     expect(rows).toHaveLength(1);
@@ -57,15 +59,15 @@ describe('POST /scrap-logs — happy path', () => {
   });
 
   it('gives each created log a unique log_id', async () => {
-    const a = await request(app).post('/scrap-logs').send(validPayload());
-    const b = await request(app).post('/scrap-logs').send(validPayload());
+    const a = await request(app).post('/scrap-logs').set(AUTH).send(validPayload());
+    const b = await request(app).post('/scrap-logs').set(AUTH).send(validPayload());
 
     expect(a.body.log_id).not.toBe(b.body.log_id);
   });
 
   it('accepts a payload without the optional notes and omits notes in the response', async () => {
     const { notes, ...payload } = validPayload();
-    const res = await request(app).post('/scrap-logs').send(payload);
+    const res = await request(app).post('/scrap-logs').set(AUTH).send(payload);
 
     expect(res.status).toBe(201);
     expect(res.body).not.toHaveProperty('notes');
@@ -74,7 +76,7 @@ describe('POST /scrap-logs — happy path', () => {
   it('trims surrounding whitespace from string fields', async () => {
     const payload = validPayload();
     const res = await request(app)
-      .post('/scrap-logs')
+      .post('/scrap-logs').set(AUTH)
       .send({ ...payload, artisan_id: '  art-302  ' });
 
     expect(res.status).toBe(201);
@@ -87,40 +89,40 @@ describe('POST /scrap-logs — validation rejection', () => {
     it(`returns 400 when required field ${field} is missing`, async () => {
       const payload = validPayload();
       delete payload[field];
-      const res = await request(app).post('/scrap-logs').send(payload);
+      const res = await request(app).post('/scrap-logs').set(AUTH).send(payload);
 
       expectError(res);
     });
   });
 
   it('returns 400 for an empty body', async () => {
-    const res = await request(app).post('/scrap-logs').send({});
+    const res = await request(app).post('/scrap-logs').set(AUTH).send({});
     expectError(res);
   });
 
   it('returns 400 when quantity_kg is a string instead of a number', async () => {
-    const res = await request(app).post('/scrap-logs').send({ ...validPayload(), quantity_kg: '12.5' });
+    const res = await request(app).post('/scrap-logs').set(AUTH).send({ ...validPayload(), quantity_kg: '12.5' });
     expectError(res);
   });
 
   it('returns 400 when job_id is a number instead of a string', async () => {
-    const res = await request(app).post('/scrap-logs').send({ ...validPayload(), job_id: 8812 });
+    const res = await request(app).post('/scrap-logs').set(AUTH).send({ ...validPayload(), job_id: 8812 });
     expectError(res);
   });
 
   it('returns 400 when a required string is whitespace only', async () => {
-    const res = await request(app).post('/scrap-logs').send({ ...validPayload(), material_type: '   ' });
+    const res = await request(app).post('/scrap-logs').set(AUTH).send({ ...validPayload(), material_type: '   ' });
     expectError(res);
   });
 
   it('returns 400 when notes is provided but not a string', async () => {
-    const res = await request(app).post('/scrap-logs').send({ ...validPayload(), notes: 42 });
+    const res = await request(app).post('/scrap-logs').set(AUTH).send({ ...validPayload(), notes: 42 });
     expectError(res);
   });
 
   it('returns 400 with an Error body for malformed JSON', async () => {
     const res = await request(app)
-      .post('/scrap-logs')
+      .post('/scrap-logs').set(AUTH)
       .set('Content-Type', 'application/json')
       .send('{"job_id": "job-1",');
 
@@ -129,7 +131,7 @@ describe('POST /scrap-logs — validation rejection', () => {
 
   it('does not write anything to the database when validation fails', async () => {
     const jobId = `${TEST_JOB_PREFIX}invalid-${Date.now()}`;
-    await request(app).post('/scrap-logs').send({ ...validPayload(), job_id: jobId, quantity_kg: -1 });
+    await request(app).post('/scrap-logs').set(AUTH).send({ ...validPayload(), job_id: jobId, quantity_kg: -1 });
 
     const [rows] = await pool.query('SELECT id FROM scrap_logs WHERE job_id = ?', [jobId]);
     expect(rows).toHaveLength(0);
@@ -138,17 +140,17 @@ describe('POST /scrap-logs — validation rejection', () => {
 
 describe('POST /scrap-logs — edge cases (quantity_kg boundaries)', () => {
   it('rejects quantity_kg = 0', async () => {
-    const res = await request(app).post('/scrap-logs').send({ ...validPayload(), quantity_kg: 0 });
+    const res = await request(app).post('/scrap-logs').set(AUTH).send({ ...validPayload(), quantity_kg: 0 });
     expectError(res);
   });
 
   it('rejects a negative quantity_kg', async () => {
-    const res = await request(app).post('/scrap-logs').send({ ...validPayload(), quantity_kg: -5 });
+    const res = await request(app).post('/scrap-logs').set(AUTH).send({ ...validPayload(), quantity_kg: -5 });
     expectError(res);
   });
 
   it('accepts the smallest storable positive quantity_kg (0.01)', async () => {
-    const res = await request(app).post('/scrap-logs').send({ ...validPayload(), quantity_kg: 0.01 });
+    const res = await request(app).post('/scrap-logs').set(AUTH).send({ ...validPayload(), quantity_kg: 0.01 });
 
     expect(res.status).toBe(201);
     expect(res.body.quantity_kg).toBe(0.01);

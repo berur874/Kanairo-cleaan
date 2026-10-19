@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
+const crypto = require('crypto');
 
 const app = express();
 
@@ -39,17 +40,44 @@ function buildBadRequest(res, message) {
   return res.status(400).json({ code: 400, message });
 }
 
+// The fixed list of material types published in openapi.yaml (Material.type enum).
+const MATERIAL_TYPES = ['metal', 'plastic', 'paper', 'glass', 'e-waste'];
+
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function sha256(value) {
+  return crypto.createHash('sha256').update(value).digest();
+}
+
+// Contract routes require "Authorization: Bearer <API_TOKEN>". Fails closed if API_TOKEN is unset.
+function requireApiToken(req, res, next) {
+  const expected = process.env.API_TOKEN;
+  const [scheme, token] = (req.get('Authorization') || '').split(' ');
+  if (!expected || scheme !== 'Bearer' || !token || !crypto.timingSafeEqual(sha256(token), sha256(expected))) {
+    return res.status(401).json({ code: 401, message: 'Missing or invalid API token' });
+  }
+  next();
+}
+
 //To be used by group one — response shaped to match openapi.yaml Material schema exactly
-app.get('/materials', async (req, res) => {
+app.get('/materials', requireApiToken, async (req, res) => {
   const { type, min_quantity_kg } = req.query;
+
+  if (type !== undefined && !MATERIAL_TYPES.includes(type)) {
+    return buildBadRequest(res, `type must be one of: ${MATERIAL_TYPES.join(', ')}`);
+  }
+
+  const minQuantity = Number(min_quantity_kg);
+  if (min_quantity_kg !== undefined && (typeof min_quantity_kg !== 'string' || min_quantity_kg.trim() === '' || !Number.isFinite(minQuantity) || minQuantity < 0)) {
+    return buildBadRequest(res, 'min_quantity_kg must be a number greater than or equal to 0');
+  }
+
   let sql = 'SELECT id, name, type, price, stock_kg FROM materials WHERE 1=1';
   const params = [];
-  if (type) { sql += ' AND type = ?'; params.push(type); }
-  if (min_quantity_kg) { sql += ' AND stock_kg >= ?'; params.push(min_quantity_kg); }
+  if (type !== undefined) { sql += ' AND type = ?'; params.push(type); }
+  if (min_quantity_kg !== undefined) { sql += ' AND stock_kg >= ?'; params.push(minQuantity); }
 
   try {
     const [rows] = await pool.query(sql, params);
@@ -67,13 +95,14 @@ app.get('/materials', async (req, res) => {
 });
 
 //To be used by group one — response shaped to match openapi.yaml CollectionLocation schema exactly
-app.get('/collection-locations', async (req, res) => {
+app.get('/collection-locations', requireApiToken, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, name, area, active FROM hotspots WHERE active = 1');
+    const [rows] = await pool.query('SELECT id, name, area, county, active FROM hotspots WHERE active = 1');
     const locations = rows.map((row) => ({
       location_id: String(row.id),
       name: row.name,
       area: row.area,
+      county: row.county,
       is_active: Boolean(row.active),
     }));
     res.json(locations);
@@ -106,7 +135,63 @@ app.get('/collection-locations/showcase', async (req, res) => {
   }
 });
 
-app.post('/scrap-logs', async (req, res) => {
+// Replaces POST /scrap-logs for consumers: the drop-off is tied to a location we own, and the caller
+// identifies itself with free-text `source` instead of its own job/artisan ids.
+app.post('/collection-locations/:location_id/drop-offs', requireApiToken, async (req, res) => {
+  const { location_id } = req.params;
+  const { material_type, quantity_kg, source, notes } = req.body;
+
+  try {
+    const [[location]] = /^\d+$/.test(location_id)
+      ? await pool.query('SELECT id FROM hotspots WHERE id = ? AND active = 1', [location_id])
+      : [[]];
+    if (!location) {
+      return res.status(404).json({ code: 404, message: `Collection location ${location_id} not found` });
+    }
+
+    if (material_type === undefined || quantity_kg === undefined || source === undefined) {
+      return buildBadRequest(res, 'material_type, quantity_kg and source are required');
+    }
+    if (!MATERIAL_TYPES.includes(material_type)) {
+      return buildBadRequest(res, `material_type must be one of: ${MATERIAL_TYPES.join(', ')}`);
+    }
+    if (typeof quantity_kg !== 'number' || !Number.isFinite(quantity_kg) || quantity_kg <= 0) {
+      return buildBadRequest(res, 'quantity_kg must be a positive number');
+    }
+    if (!isNonEmptyString(source) || source.trim().length > 120) {
+      return buildBadRequest(res, 'source must be a non-empty string of at most 120 characters');
+    }
+    if (notes !== undefined && !isNonEmptyString(notes)) {
+      return buildBadRequest(res, 'notes must be a non-empty string when provided');
+    }
+
+    const [result] = await pool.query(
+      'INSERT INTO drop_offs (hotspot_id, material_type, quantity_kg, source, notes) VALUES (?, ?, ?, ?, ?)',
+      [location.id, material_type, quantity_kg, source.trim(), notes ? notes.trim() : null]
+    );
+    await pool.query(
+      `UPDATE drop_offs SET drop_off_id = CONCAT('drop-', LPAD(id, 4, '0')) WHERE id = ?`,
+      [result.insertId]
+    );
+
+    const [[saved]] = await pool.query('SELECT * FROM drop_offs WHERE id = ?', [result.insertId]);
+
+    res.status(201).json({
+      drop_off_id: saved.drop_off_id,
+      location_id: String(saved.hotspot_id),
+      material_type: saved.material_type,
+      quantity_kg: Number(saved.quantity_kg),
+      source: saved.source,
+      notes: saved.notes || undefined,
+      status: saved.status,
+      created_at: new Date(saved.created_at).toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/scrap-logs', requireApiToken, async (req, res) => {
   const { job_id, artisan_id, material_type, quantity_kg, notes } = req.body;
 
   if (job_id === undefined || artisan_id === undefined || material_type === undefined || quantity_kg === undefined) {

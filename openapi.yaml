@@ -2,12 +2,19 @@ openapi: 3.0.0
 info:
   title: Kanairo-Klean Provider API
   description: API contract provided by Kanairo-Klean (Team 13) for Group 1 (Artisans App) to source raw materials and log scrap.
-  version: 1.0.0
+  version: 1.1.0
+servers:
+  - url: http://localhost:5050
+    description: Local development (see README for setup)
+  - url: https://supervoluminous-vikki-unsurlily.ngrok-free.dev
+    description: Hosted for partner testing. Only up while the Kanairo-Klean team is running it.
+security:
+  - bearerAuth: []
 paths:
   /collection-locations:
     get:
       summary: List collection and drop-off hotspots
-      description: Retrieve active second-hand/raw material collection locations where artisans can pick up materials.
+      description: Retrieve collection locations where artisans can pick up materials. Only active locations are returned, so is_active is always true in this list. Inactive locations never appear here, and drop-offs to them return 404.
       responses:
         '200':
           description: A list of active collection hotspots.
@@ -17,6 +24,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/CollectionLocation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /materials:
     get:
@@ -26,17 +35,17 @@ paths:
         - name: type
           in: query
           required: false
-          description: Filter by material category (e.g., scrap_metal, plastic, wood).
+          description: Filter by material type. Must be one of the MaterialType values; any other value returns 400.
           schema:
-            type: string
-            example: "scrap_metal"
+            $ref: '#/components/schemas/MaterialType'
         - name: min_quantity_kg
           in: query
           required: false
-          description: Filter materials available in quantities greater than or equal to this value (in kg).
+          description: Filter materials available in quantities greater than or equal to this value (in kg). Must be a number >= 0; anything else returns 400.
           schema:
             type: number
             format: float
+            minimum: 0
             example: 50.0
       responses:
         '200':
@@ -47,11 +56,69 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Material'
+        '400':
+          description: Invalid filter, e.g. an unknown type or a negative or non-numeric min_quantity_kg.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 400
+                message: 'type must be one of: metal, plastic, paper, glass, e-waste'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /collection-locations/{location_id}/drop-offs:
+    post:
+      summary: Report leftover scrap dropped off at a collection location
+      description: Record reusable leftover scrap brought to one of our active collection locations. New drop-offs start as pending. Replaces POST /scrap-logs.
+      parameters:
+        - name: location_id
+          in: path
+          required: true
+          description: A location_id from GET /collection-locations.
+          schema:
+            type: string
+            example: "1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DropOffInput'
+      responses:
+        '201':
+          description: Drop-off recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DropOff'
+        '400':
+          description: Missing or invalid field.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 400
+                message: material_type, quantity_kg and source are required
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No active collection location has this location_id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 404
+                message: Collection location 99 not found
 
   /scrap-logs:
     post:
-      summary: Create leftover scrap log entry
-      description: Submit a log entry reporting reusable leftover scrap material after a job is completed.
+      deprecated: true
+      summary: Create leftover scrap log entry (deprecated)
+      description: Deprecated in 1.1.0; use POST /collection-locations/{location_id}/drop-offs instead. Still accepted until consumers have moved over.
       requestBody:
         required: true
         content:
@@ -71,26 +138,54 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: 'Send the API token issued by Kanairo-Klean as "Authorization: Bearer <token>".'
+  responses:
+    Unauthorized:
+      description: Missing or invalid API token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: 401
+            message: Missing or invalid API token
   schemas:
+    MaterialType:
+      type: string
+      description: The fixed list of material types. Used by Material.type, the GET /materials type filter, and drop-off material_type.
+      enum: [metal, plastic, paper, glass, e-waste]
+      example: metal
+
     CollectionLocation:
       type: object
       required:
         - location_id
         - name
         - area
+        - county
         - is_active
       properties:
         location_id:
           type: string
-          example: "loc-001"
+          example: "1"
         name:
           type: string
-          example: "Gikomba Sorting Depot"
+          example: "Gikomba"
         area:
           type: string
           example: "Kamukunji"
+        county:
+          type: string
+          description: Kenyan county the location is in. Most locations are in Nairobi; some (e.g. Ruiru) are in neighbouring counties.
+          example: "Nairobi"
         is_active:
           type: boolean
           example: true
@@ -111,8 +206,7 @@ components:
           type: string
           example: "Aluminum Scrap Headers"
         type:
-          type: string
-          example: "scrap_metal"
+          $ref: '#/components/schemas/MaterialType'
         quantity_kg:
           type: number
           format: float
@@ -120,7 +214,74 @@ components:
         unit_price_kes:
           type: number
           format: float
+          description: Price in KES per kg.
           example: 150.00
+
+    DropOffInput:
+      type: object
+      required:
+        - material_type
+        - quantity_kg
+        - source
+      properties:
+        material_type:
+          $ref: '#/components/schemas/MaterialType'
+        quantity_kg:
+          type: number
+          format: float
+          exclusiveMinimum: true
+          minimum: 0
+          example: 12.5
+        source:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: Free text saying who is dropping off the scrap. Not validated against any id.
+          example: "Find My Artisan, electrical job in Embakasi"
+        notes:
+          type: string
+          minLength: 1
+          example: "Offcut copper wiring and brass fittings."
+
+    DropOff:
+      type: object
+      required:
+        - drop_off_id
+        - location_id
+        - material_type
+        - quantity_kg
+        - source
+        - status
+        - created_at
+      properties:
+        drop_off_id:
+          type: string
+          example: "drop-0001"
+        location_id:
+          type: string
+          example: "1"
+        material_type:
+          $ref: '#/components/schemas/MaterialType'
+        quantity_kg:
+          type: number
+          format: float
+          example: 12.5
+        source:
+          type: string
+          example: "Find My Artisan, electrical job in Embakasi"
+        notes:
+          type: string
+          description: Present only when notes were sent.
+          example: "Offcut copper wiring and brass fittings."
+        status:
+          type: string
+          enum: [pending, received]
+          description: New drop-offs are pending until Kanairo-Klean staff receive them.
+          example: pending
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-10-16T10:30:00Z"
 
     ScrapLogInput:
       type: object
@@ -138,7 +299,7 @@ components:
           example: "art-302"
         material_type:
           type: string
-          example: "scrap_metal"
+          example: "metal"
         quantity_kg:
           type: number
           format: float
@@ -168,7 +329,7 @@ components:
           example: "art-302"
         material_type:
           type: string
-          example: "scrap_metal"
+          example: "metal"
         quantity_kg:
           type: number
           format: float

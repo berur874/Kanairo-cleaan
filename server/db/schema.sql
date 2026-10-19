@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS hotspots (
   id int NOT NULL AUTO_INCREMENT,
   name varchar(100) NOT NULL,
   area varchar(100) DEFAULT NULL,
+  county varchar(50) NOT NULL DEFAULT 'Nairobi',
   primary_material_id varchar(20) DEFAULT NULL,
   activity int DEFAULT '0',
   stock_kg int DEFAULT '0',
@@ -68,3 +69,19 @@ CREATE TABLE IF NOT EXISTS scrap_logs (
   CONSTRAINT scrap_logs_ibfk_2 FOREIGN KEY (material_id) REFERENCES materials (id)
 ) ENGINE=InnoDB;
 
+
+CREATE TABLE IF NOT EXISTS drop_offs (
+  id int NOT NULL AUTO_INCREMENT,
+  drop_off_id varchar(30) DEFAULT NULL,
+  hotspot_id int NOT NULL,
+  material_type varchar(50) NOT NULL,
+  quantity_kg decimal(10,2) NOT NULL,
+  source varchar(120) NOT NULL,
+  notes text,
+  status enum('pending','received') NOT NULL DEFAULT 'pending',
+  created_at datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_drop_off_id (drop_off_id),
+  KEY hotspot_id (hotspot_id),
+  CONSTRAINT drop_offs_ibfk_1 FOREIGN KEY (hotspot_id) REFERENCES hotspots (id)
+) ENGINE=InnoDB;
