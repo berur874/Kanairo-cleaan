@@ -1,0 +1,20 @@
+{
+  "name": "kanairo-cleaan",
+  "version": "1.0.0",
+  "description": "A digital marketplace platform connecting informal waste collectors, local aggregator yards, and industrial recyclers — bringing price transparency, instant payments, and full material traceability to the waste economy.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/berur874/Kanairo-cleaan.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/berur874/Kanairo-cleaan/issues"
+  },
+  "homepage": "https://github.com/berur874/Kanairo-cleaan#readme"
+}

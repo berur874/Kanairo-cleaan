@@ -146,6 +146,7 @@ Content-Type: application/json
 ```json
 {"code":400,"message":"job_id, artisan_id, material_type and quantity_kg are required"}
 ```
+curl -i -X POST http://localhost:5050/scrap-logs -H 'Content-Type: application/json' -d '{"job_id":"docs-example-20261012","artisan_id":"art-docs","material_type":"plastic","quantity_kg":1.25,"notes":"README quickstart example"}'
 
 An unknown route returns `404 Not Found` in the same format:
 
