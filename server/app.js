@@ -3,8 +3,45 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
+
+// Week 10 Part E: record every request (e.g. from Group 1 via ngrok) to logs/requests.jsonl, one JSON object per line.
+// Never records the token itself, only whether a Bearer header was sent. Off under Jest.
+const REQUEST_LOG = path.join(__dirname, 'logs', 'requests.jsonl');
+if (process.env.NODE_ENV !== 'test') {
+  fs.mkdirSync(path.dirname(REQUEST_LOG), { recursive: true });
+  app.use((req, res, next) => {
+    const started = Date.now();
+    let responseBody;
+    const json = res.json.bind(res);
+    res.json = (body) => { responseBody = body; return json(body); };
+
+    res.on('finish', () => {
+      const auth = req.get('Authorization') || '';
+      const entry = {
+        time: new Date().toISOString(),
+        via: req.get('x-forwarded-for') ? 'ngrok' : 'local',
+        method: req.method,
+        path: req.originalUrl,
+        status: res.statusCode,
+        ms: Date.now() - started,
+        auth: !auth ? 'missing' : auth.startsWith('Bearer ') ? 'bearer' : 'other scheme',
+        userAgent: req.get('user-agent'),
+      };
+      // On failures, keep what was sent and what we answered so the cause can be logged.
+      if (res.statusCode >= 400) {
+        entry.error = responseBody;
+        if (req.body && Object.keys(req.body).length) entry.requestBody = req.body;
+      }
+      console.log(`${entry.time.slice(11, 19)} ${entry.via} ${entry.method} ${entry.path} -> ${entry.status}`);
+      fs.appendFile(REQUEST_LOG, JSON.stringify(entry) + '\n', () => {});
+    });
+    next();
+  });
+}
 
 app.use(cors());
 app.use(express.json());
@@ -391,6 +428,57 @@ app.get('/dashboard/summary', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Week 10: upstream partner (Group 12, AccessMap Nairobi). Called from the server so their key never reaches the browser.
+// Field names follow Group 12's openapi.yaml Venue schema exactly.
+// Venue.category enum from Group 12's contract.
+const PARTNER_CATEGORIES = ['market', 'hospital', 'school', 'transport', 'office', 'bank', 'other'];
+
+app.get('/partner/venues', async (req, res) => {
+  const category = req.query.category ?? 'market';
+  if (!PARTNER_CATEGORIES.includes(category)) {
+    return buildBadRequest(res, `category must be one of: ${PARTNER_CATEGORIES.join(', ')}`);
+  }
+
+  const PARTNER_URL = process.env.PARTNER_URL;
+  const PARTNER_KEY = process.env.PARTNER_API_KEY; // never log this
+  if (!PARTNER_URL) {
+    console.error('partner call skipped: PARTNER_URL is not set');
+    return res.status(502).json({ code: 502, message: 'Partner data unavailable' });
+  }
+
+  try {
+    // Group 12 has not issued keys yet; send the header only once we have one.
+    const headers = PARTNER_KEY ? { 'X-API-Key': PARTNER_KEY } : {};
+    const r = await fetch(`${PARTNER_URL}/api/venues?category=${category}`, { headers });
+    if (!r.ok) {
+      console.error('partner returned', r.status);
+      return res.status(502).json({ code: 502, message: 'Partner data unavailable' });
+    }
+
+    const venues = await r.json();
+    if (!Array.isArray(venues)) {
+      console.error('partner returned an unexpected shape (expected an array of venues)');
+      return res.status(502).json({ code: 502, message: 'Partner data unavailable' });
+    }
+
+    res.json(venues.map((v) => {
+      const a = v.accessibility || {};
+      return {
+        name: v.name,
+        area: v.area,
+        address: v.address,
+        ramp: a.ramp === true,
+        accessibleToilet: a.accessibleToilet === true,
+        accessibleParking: a.accessibleParking === true,
+        featureCount: Object.values(a).filter((x) => x === true).length,
+      };
+    }));
+  } catch (err) {
+    console.error('partner call failed:', err.cause?.code || err.message);
+    res.status(502).json({ code: 502, message: 'Partner data unavailable' });
   }
 });
 

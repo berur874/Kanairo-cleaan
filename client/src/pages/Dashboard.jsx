@@ -5,7 +5,7 @@ import { MaterialMix, InventoryBars, LogMaterialForm } from '../components/Dashb
 import { useHotspots } from '../utils/storage.jsx';
 import { getMaterials, simulatePrices } from '../utils/marketData.jsx';
 import { loadSiteData } from '../utils/data-loader.jsx';
-import { getTransactions, onTransactionsChange, getDashboardSummary } from '../utils/payments.jsx';
+import { getTransactions, onTransactionsChange, getDashboardSummary, getPartnerVenues, PARTNER_CATEGORIES } from '../utils/payments.jsx';
 
 
 const MAP_PINS = [
@@ -25,6 +25,9 @@ export default function Dashboard() {
     const [prices, setPrices] = useState([]);
     const [transactions, setTransactions] = useState([]);
     const [summary, setSummary] = useState(null);
+    const [venueCategory, setVenueCategory] = useState('market');
+    const [venues, setVenues] = useState(null);
+    const [venuesError, setVenuesError] = useState(false);
 
     const revenueCanvasRef = useRef(null);
     const weightCanvasRef = useRef(null);
@@ -60,6 +63,17 @@ export default function Dashboard() {
     }, []);
 
     
+    // Partner venues reload whenever the category dropdown changes.
+    useEffect(() => {
+        let alive = true;
+
+        getPartnerVenues(venueCategory)
+            .then((v) => { if (alive) setVenues(v); })
+            .catch(() => { if (alive) setVenuesError(true); });
+
+        return () => { alive = false; };
+    }, [venueCategory]);
+
     useEffect(() => {
         const iv = setInterval(() => {
             setPrices((p) => (p.length ? simulatePrices(p) : p));
@@ -323,6 +337,65 @@ export default function Dashboard() {
                                 ))}
                             </div>
                         </div>
+                    </div>
+
+                    {/* Upstream partner data: Group 12, AccessMap Nairobi */}
+                    <div className="dash-card">
+                        <div className="dash-card-head">
+                            <h3>Accessible Venues — Nairobi</h3>
+                            <span className="dash-card-tag">AccessMap · Group 12</span>
+                        </div>
+                        <p className="dash-card-note">
+                            Venues and their accessibility features, so collectors with limited mobility know where they can go.
+                        </p>
+                        <div className="dash-form dash-form-filter">
+                            <div className="dash-form-field">
+                                <label htmlFor="venue-category-select">Category</label>
+                                <select
+                                    id="venue-category-select"
+                                    value={venueCategory}
+                                    onChange={(e) => {
+                                        setVenues(null);
+                                        setVenuesError(false);
+                                        setVenueCategory(e.target.value);
+                                    }}
+                                >
+                                    {PARTNER_CATEGORIES.map((c) => (
+                                        <option key={c} value={c}>{c[0].toUpperCase() + c.slice(1)}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        {venuesError ? (
+                            <p style={{ fontSize: '0.78rem', color: 'var(--outline)', padding: '12px 0' }}>
+                                Partner data is unavailable right now. The rest of the dashboard still works.
+                            </p>
+                        ) : venues === null ? (
+                            <p style={{ fontSize: '0.78rem', color: 'var(--outline)', padding: '12px 0' }}>
+                                Loading partner venues…
+                            </p>
+                        ) : venues.length === 0 ? (
+                            <p style={{ fontSize: '0.78rem', color: 'var(--outline)', padding: '12px 0' }}>
+                                No {venueCategory} venues listed by AccessMap yet.
+                            </p>
+                        ) : (
+                            <div>
+                                <div className="txn-head-row">
+                                    {['Venue', 'Area', 'Ramp', 'Toilet', 'Features'].map((t) => (
+                                        <span key={t}>{t}</span>
+                                    ))}
+                                </div>
+                                {venues.map((v) => (
+                                    <div className="txn-row" key={`${v.name}-${v.area}`}>
+                                        <span className="txn-id">{v.name}</span>
+                                        <span className="txn-mat">{v.area}</span>
+                                        <span className="txn-wt">{v.ramp ? 'Yes' : 'No'}</span>
+                                        <span className="txn-amt">{v.accessibleToilet ? 'Yes' : 'No'}</span>
+                                        <span className="txn-hub">{v.featureCount} / 8</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Historical Transactions */}

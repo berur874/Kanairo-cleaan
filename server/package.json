@@ -7,7 +7,8 @@
     "dev": "nodemon index.js",
     "start": "node index.js",
     "db:schema": "node db/migrate.js schema",
-    "db:seed": "node db/migrate.js seed"
+    "db:seed": "node db/migrate.js seed",
+    "log:report": "node scripts/request-report.js"
   },
   "jest": {
     "setupFiles": ["<rootDir>/jest.setup.js"]
