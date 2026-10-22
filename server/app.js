@@ -3,8 +3,45 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
+
+// Week 10 Part E: record every request (e.g. from Group 1 via ngrok) to logs/requests.jsonl, one JSON object per line.
+// Never records the token itself, only whether a Bearer header was sent. Off under Jest.
+const REQUEST_LOG = path.join(__dirname, 'logs', 'requests.jsonl');
+if (process.env.NODE_ENV !== 'test') {
+  fs.mkdirSync(path.dirname(REQUEST_LOG), { recursive: true });
+  app.use((req, res, next) => {
+    const started = Date.now();
+    let responseBody;
+    const json = res.json.bind(res);
+    res.json = (body) => { responseBody = body; return json(body); };
+
+    res.on('finish', () => {
+      const auth = req.get('Authorization') || '';
+      const entry = {
+        time: new Date().toISOString(),
+        via: req.get('x-forwarded-for') ? 'ngrok' : 'local',
+        method: req.method,
+        path: req.originalUrl,
+        status: res.statusCode,
+        ms: Date.now() - started,
+        auth: !auth ? 'missing' : auth.startsWith('Bearer ') ? 'bearer' : 'other scheme',
+        userAgent: req.get('user-agent'),
+      };
+      // On failures, keep what was sent and what we answered so the cause can be logged.
+      if (res.statusCode >= 400) {
+        entry.error = responseBody;
+        if (req.body && Object.keys(req.body).length) entry.requestBody = req.body;
+      }
+      console.log(`${entry.time.slice(11, 19)} ${entry.via} ${entry.method} ${entry.path} -> ${entry.status}`);
+      fs.appendFile(REQUEST_LOG, JSON.stringify(entry) + '\n', () => {});
+    });
+    next();
+  });
+}
 
 app.use(cors());
 app.use(express.json());
