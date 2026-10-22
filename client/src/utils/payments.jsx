@@ -9,9 +9,12 @@ export async function getDashboardSummary() {
     return res.json();
 }
 
-/** Accessible market venues from our upstream partner (Group 12), proxied through our own server. */
-export async function getPartnerMarketVenues() {
-    const res = await fetch(`${API_URL}/partner/market-venues`);
+/** Group 12's venue categories, from the Venue.category enum in their contract. */
+export const PARTNER_CATEGORIES = ['market', 'hospital', 'school', 'transport', 'office', 'bank', 'other'];
+
+/** Venues of one category from our upstream partner (Group 12), proxied through our own server. */
+export async function getPartnerVenues(category = 'market') {
+    const res = await fetch(`${API_URL}/partner/venues?category=${encodeURIComponent(category)}`);
     if (!res.ok) throw new Error(`Partner data unavailable: ${res.status}`);
     return res.json();
 }

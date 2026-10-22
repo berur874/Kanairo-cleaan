@@ -46,12 +46,13 @@ We did not call `POST /api/venues` or `POST /api/reports` by hand, because they 
 
 ## Feature (Part C)
 
-**What:** an "Accessible Markets — Nairobi" panel on our Dashboard. It lists Group 12's `market` venues with their area, whether they have a ramp and an accessible toilet, and how many of the 8 accessibility features they have. Collectors with limited mobility can use it to choose where to sell.
+**What:** an "Accessible Venues — Nairobi" panel on our Dashboard. It lists Group 12's venues with their area, whether they have a ramp and an accessible toilet, and how many of the 8 accessibility features they have. A dropdown switches between the 7 categories in their contract and defaults to `market`, so collectors with limited mobility can choose where to sell.
 
 **How:** the browser never calls Group 12. Our server calls them and the page calls our server:
 
-- `GET /partner/market-venues` in `server/app.js` calls `${PARTNER_URL}/api/venues?category=market` and returns only `name`, `area`, `address`, `ramp`, `accessibleToilet`, `accessibleParking` and `featureCount`.
+- `GET /partner/venues?category=<category>` in `server/app.js` calls `${PARTNER_URL}/api/venues?category=<category>` and returns only `name`, `area`, `address`, `ramp`, `accessibleToilet`, `accessibleParking` and `featureCount`.
 - `PARTNER_URL` and `PARTNER_API_KEY` come from `server/.env`. Both are listed in `server/.env.example` and `.env` is gitignored. The `X-API-Key` header is sent only once `PARTNER_API_KEY` is set, because Group 12 has not issued keys yet (row 1).
+- `category` defaults to `market` and must be one of the 7 values in their `Venue.category` enum. Anything else gets a 400 from us and never reaches Group 12. `hotel` is left out because it is not in their contract (row 3).
 - Field names are taken from the `Venue` schema in Group 12's contract. The route also checks the response is an array before mapping it.
 
 **Result on 2026-10-22:** `200`, 8 market venues, e.g. `{"name":"The Junction Mall","area":"Ngong Road","ramp":true,"accessibleToilet":true,"featureCount":5}`.

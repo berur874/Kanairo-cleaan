@@ -396,7 +396,15 @@ app.get('/dashboard/summary', async (req, res) => {
 
 // Week 10: upstream partner (Group 12, AccessMap Nairobi). Called from the server so their key never reaches the browser.
 // Field names follow Group 12's openapi.yaml Venue schema exactly.
-app.get('/partner/market-venues', async (req, res) => {
+// Venue.category enum from Group 12's contract ("hotel" appears in their data but is not in the enum; see INTEGRATION_LOG row 3).
+const PARTNER_CATEGORIES = ['market', 'hospital', 'school', 'transport', 'office', 'bank', 'other'];
+
+app.get('/partner/venues', async (req, res) => {
+  const category = req.query.category ?? 'market';
+  if (!PARTNER_CATEGORIES.includes(category)) {
+    return buildBadRequest(res, `category must be one of: ${PARTNER_CATEGORIES.join(', ')}`);
+  }
+
   const PARTNER_URL = process.env.PARTNER_URL;
   const PARTNER_KEY = process.env.PARTNER_API_KEY; // never log this
   if (!PARTNER_URL) {
@@ -407,7 +415,7 @@ app.get('/partner/market-venues', async (req, res) => {
   try {
     // Group 12 has not issued keys yet; send the header only once we have one.
     const headers = PARTNER_KEY ? { 'X-API-Key': PARTNER_KEY } : {};
-    const r = await fetch(`${PARTNER_URL}/api/venues?category=market`, { headers });
+    const r = await fetch(`${PARTNER_URL}/api/venues?category=${category}`, { headers });
     if (!r.ok) {
       console.error('partner returned', r.status);
       return res.status(502).json({ code: 502, message: 'Partner data unavailable' });
