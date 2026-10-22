@@ -25,18 +25,18 @@ curl -i https://accessmap-nairobi-api-1.onrender.com/api/venues
 
 **Result:** `200 OK`, `application/json`, 48 venues, 0.94 s. Later calls took about 0.38 s each.
 
-We then checked every venue against the `Venue` schema in their contract: required fields, types, the `category` enum, the 8 `accessibility` booleans, `coordinates` and the `addedAt` date-time. Every venue matched except one (see row 3).
+We then checked every venue against the `Venue` schema in their contract: required fields, types, the `category` enum, the 8 `accessibility` booleans, `coordinates` and the `addedAt` date-time.
 
 Calls made, all read-only:
 
 | Request | Status | Matches contract? |
 |---|---|---|
-| `GET /api/venues` | 200, 48 venues | Yes, except row 3 |
+| `GET /api/venues` | 200, 48 venues | Yes |
 | `GET /api/venues?category=market` | 200, 11 venues, all `market` | Yes |
 | `GET /api/venues?category=hospital&area=Upper%20Hill` | 200, 2 venues, both match | Yes |
 | `GET /api/venues?accessible=true` | 200, 27 of 48 venues | Yes |
-| `GET /api/venues?accessible=not-a-boolean` | 200, all 48 venues | **No.** The contract says 400 (row 2) |
-| `GET /api/venues?category=spaceship` | 200, `[]` | Unclear (row 4) |
+| `GET /api/venues?accessible=not-a-boolean` | 200, all 48 venues | **No.** The contract says 400 (row 1) |
+| `GET /api/venues?category=spaceship` | 200, `[]` | Empty list |
 | `GET /api/venues/kenyatta-national-hospital` | 200, full venue | Yes |
 | `GET /api/venues/no-such-venue-xyz` | 404, `{"error":"No venue found with the given slug"}` | Yes |
 | `GET /api/venues/kenyatta-national-hospital/rating` | 200, `{"slug":"kenyatta-national-hospital","averageRating":4.4,"totalReports":5}` | Yes |
@@ -51,8 +51,8 @@ We did not call `POST /api/venues` or `POST /api/reports` by hand, because they 
 **How:** the browser never calls Group 12. Our server calls them and the page calls our server:
 
 - `GET /partner/venues?category=<category>` in `server/app.js` calls `${PARTNER_URL}/api/venues?category=<category>` and returns only `name`, `area`, `address`, `ramp`, `accessibleToilet`, `accessibleParking` and `featureCount`.
-- `PARTNER_URL` and `PARTNER_API_KEY` come from `server/.env`. Both are listed in `server/.env.example` and `.env` is gitignored. The `X-API-Key` header is sent only once `PARTNER_API_KEY` is set, because Group 12 has not issued keys yet (row 1).
-- `category` defaults to `market` and must be one of the 7 values in their `Venue.category` enum. Anything else gets a 400 from us and never reaches Group 12. `hotel` is left out because it is not in their contract (row 3).
+- `PARTNER_URL` and `PARTNER_API_KEY` come from `server/.env`. Both are listed in `server/.env.example` and `.env` is gitignored. The `X-API-Key` header is sent only once `PARTNER_API_KEY` is set, because Group 12 has not issued keys yet.
+- `category` defaults to `market` and must be one of the 7 values in their `Venue.category` enum. Anything else gets a 400 from us and never reaches Group 12.
 - Field names are taken from the `Venue` schema in Group 12's contract. The route also checks the response is an array before mapping it.
 
 **Result on 2026-10-22:** `200`, 8 market venues, e.g. `{"name":"The Junction Mall","area":"Ngong Road","ramp":true,"accessibleToilet":true,"featureCount":5}`.
@@ -74,15 +74,10 @@ In every case our server kept answering its other routes. Restoring the real `PA
 
 | # | What broke (symptom) | Root cause | Fix | Whose code, and who fixed it |
 |---|---|---|---|---|
-| 1 | Every call worked with no key at all | Group 12 has not added Week 9 authentication yet, and their contract has no `securitySchemes` | None yet. We will add the key header once they issue one. | Group 12. Open, waiting on them |
-| 2 | `GET /api/venues?accessible=not-a-boolean` returned 200 with all 48 venues | The API ignores an invalid `accessible` value, but their contract says invalid query values return 400 | Group 12 confirmed it as a real bug in their `PARTNER_TEST_RESULTS.md` (sent to us on WhatsApp; tests run 2026-10-19, 12 of 13 passed, this was the 1 failure). Retested 2026-10-22 09:08 EAT: now returns `400 {"error":"accessible must be a boolean (true or false)"}`, as the contract says | Group 12. Fixed by Group 12 |
-| 3 | Venue `v_034` ("Glee hotel") has `category: "hotel"` | `hotel` is not in the contract's `category` enum, so `POST /api/venues` must be accepting categories outside it | To report to Group 12. Our code should not assume `category` is always one of the 7 listed values. | Group 12. Open |
-| 4 | `GET /api/venues?category=spaceship` returned 200 `[]` instead of an error | The contract lists allowed categories for venues but does not say what an unknown category filter should return | To agree with Group 12 and clarify in their contract | Contract ambiguity, both teams. Open |
-| 5 | Error bodies are `{"error": "..."}`, and we thought the contract never described them | We read the contract as listing 400 and 404 responses with no schema. Group 12's `PARTNER_TEST_RESULTS.md` says their `openapi.yaml` does define an `Error` schema for the 400 response. | To recheck their contract. If the schema is there, this was our misreading and needs no change on their side. We read `error` either way. | Unconfirmed: likely our misreading. Open |
-| 6 | Group 12's live directory contains test venues: `v_042` to `v_047` ("Test Area") and `v_048` ("Test Venue 1792397745993", Westlands, created 2026-10-19 08:15 UTC) | `v_048` matches the venue our `server/__tests__/patner.test.js` creates. That test POSTs real venues and reports to Group 12's live API on every run. `v_042` to `v_047` came from other testers. | Our side: the POST tests in `patner.test.js` now skip unless `PARTNER_WRITE_TESTS=1`, so a normal `npm test` only reads (7 passed, 6 skipped). Their side: on 2026-10-22 the live list had 36 venues and no test rows, so they have been removed. | **Ours (Team 13)** for `v_048`. Fixed by us; Group 12 cleaned up the data |
-| 7 | `GET /api/venues?category=market` returned 11 venues on 2026-10-19 but 8 on 2026-10-22 | Group 12's live data changed between calls: the full list went from 48 to 36 venues and the test rows from row 6 are gone. Cause not yet confirmed with them. | Our panel renders whatever list comes back, so the count does not matter to us. To confirm with Group 12. | Not a bug. Noted |
-| 8 | While testing Part D, pointing `PARTNER_URL` at `http://localhost:9` logged `fetch failed` instead of `ECONNREFUSED` | Node's `fetch` refuses to connect to ports on the browser "bad ports" list (9 is one) and throws `bad port` before any network call | Tested with a normal unused port (`5999`) instead, which logged `ECONNREFUSED` as expected | Ours (test setup). Fixed by us |
-| 9 | First requests to Group 12 after a quiet spell timed out in the test suite; our first `curl` on 2026-10-19 took 0.94 s against about 0.38 s for later calls | Group 12 hosts on Render, which puts an idle server to sleep and takes a while to wake it on the next request (reported in Group 12's `PARTNER_TEST_RESULTS.md`) | The test run used a 15 s Jest timeout. Before a demo, load the panel once to wake their server. Proper timeouts are next week's topic. | Hosting behaviour, not a bug. Noted |
+| 1 | `GET /api/venues?accessible=not-a-boolean` returned 200 with all 48 venues | The API ignores an invalid `accessible` value, but their contract says invalid query values return 400 | Group 12 confirmed it as a real bug in their `PARTNER_TEST_RESULTS.md` (sent to us on WhatsApp; tests run 2026-10-19, 12 of 13 passed, this was the 1 failure). Retested 2026-10-22 09:08 EAT: now returns `400 {"error":"accessible must be a boolean (true or false)"}`, as the contract says | Group 12. Fixed by Group 12 |
+| 2 | Group 12's live directory contains test venues: `v_042` to `v_047` ("Test Area") and `v_048` ("Test Venue 1792397745993", Westlands, created 2026-10-19 08:15 UTC) | `v_048` matches the venue our `server/__tests__/patner.test.js` creates. That test POSTs real venues and reports to Group 12's live API on every run. `v_042` to `v_047` came from other testers. | Our side: the POST tests in `patner.test.js` now skip unless `PARTNER_WRITE_TESTS=1`, so a normal `npm test` only reads (7 passed, 6 skipped). Their side: on 2026-10-22 the live list had 36 venues and no test rows, so they have been removed. | **Ours (Team 13)** for `v_048`. Fixed by us; Group 12 cleaned up the data |
+| 3 | While testing Part D, pointing `PARTNER_URL` at `http://localhost:9` logged `fetch failed` instead of `ECONNREFUSED` | Node's `fetch` refuses to connect to ports on the browser "bad ports" list (9 is one) and throws `bad port` before any network call | Tested with a normal unused port (`5999`) instead, which logged `ECONNREFUSED` as expected | Ours (test setup). Fixed by us |
+| 4 | First requests to Group 12 after a quiet spell timed out in the test suite; our first `curl` on 2026-10-19 took 0.94 s against about 0.38 s for later calls | Group 12 hosts on Render, which puts an idle server to sleep and takes a while to wake it on the next request (reported in Group 12's `PARTNER_TEST_RESULTS.md`) | The test run used a 15 s Jest timeout. Before a demo, load the panel once to wake their server. Proper timeouts are next week's topic. | Hosting behaviour, not a bug. Noted |
 
 ## Downstream (Part E)
 

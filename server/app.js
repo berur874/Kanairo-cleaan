@@ -433,7 +433,7 @@ app.get('/dashboard/summary', async (req, res) => {
 
 // Week 10: upstream partner (Group 12, AccessMap Nairobi). Called from the server so their key never reaches the browser.
 // Field names follow Group 12's openapi.yaml Venue schema exactly.
-// Venue.category enum from Group 12's contract ("hotel" appears in their data but is not in the enum; see INTEGRATION_LOG row 3).
+// Venue.category enum from Group 12's contract.
 const PARTNER_CATEGORIES = ['market', 'hospital', 'school', 'transport', 'office', 'bank', 'other'];
 
 app.get('/partner/venues', async (req, res) => {

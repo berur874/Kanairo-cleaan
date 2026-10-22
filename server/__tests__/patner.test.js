@@ -3,7 +3,7 @@ const request = require('supertest');
 // Set this to your partner's running server URL (local or Render live URL)
 const BASE_URL = process.env.PARTNER_URL || 'https://accessmap-nairobi-api-1.onrender.com';
 
-// The POST tests create real venues and reports in Group 12's live data (see INTEGRATION_LOG.md row 6).
+// The POST tests create real venues and reports in Group 12's live data (see INTEGRATION_LOG.md row 2).
 // They only run when PARTNER_WRITE_TESTS=1, e.g. against a local copy of their server.
 const describeWrites = process.env.PARTNER_WRITE_TESTS === '1' ? describe : describe.skip;
 
