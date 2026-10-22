@@ -3,8 +3,17 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
 
+//async function run(sqlFile, { withDatabase } = { withDatabase: true }) {
+  //const sql = fs.readFileSync(path.join(__dirname, sqlFile), 'utf8');
 async function run(sqlFile, { withDatabase } = { withDatabase: true }) {
-  const sql = fs.readFileSync(path.join(__dirname, sqlFile), 'utf8');
+  let sql = fs.readFileSync(path.join(__dirname, sqlFile), 'utf8');
+  // Hosted DB: it already exists under DB_NAME, so drop the hardcoded CREATE DATABASE / USE lines.
+  if (process.env.DB_EXISTS === 'true') {
+    sql = sql
+      .replace(/^\s*CREATE DATABASE[^;]*;\s*$/gim, '')
+      .replace(/^\s*USE\s+[^;]*;\s*$/gim, '');
+    withDatabase = true;
+  }  
   const connection = await mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
