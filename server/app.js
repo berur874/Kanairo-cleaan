@@ -394,6 +394,49 @@ app.get('/dashboard/summary', async (req, res) => {
   }
 });
 
+// Week 10: upstream partner (Group 12, AccessMap Nairobi). Called from the server so their key never reaches the browser.
+// Field names follow Group 12's openapi.yaml Venue schema exactly.
+app.get('/partner/market-venues', async (req, res) => {
+  const PARTNER_URL = process.env.PARTNER_URL;
+  const PARTNER_KEY = process.env.PARTNER_API_KEY; // never log this
+  if (!PARTNER_URL) {
+    console.error('partner call skipped: PARTNER_URL is not set');
+    return res.status(502).json({ code: 502, message: 'Partner data unavailable' });
+  }
+
+  try {
+    // Group 12 has not issued keys yet; send the header only once we have one.
+    const headers = PARTNER_KEY ? { 'X-API-Key': PARTNER_KEY } : {};
+    const r = await fetch(`${PARTNER_URL}/api/venues?category=market`, { headers });
+    if (!r.ok) {
+      console.error('partner returned', r.status);
+      return res.status(502).json({ code: 502, message: 'Partner data unavailable' });
+    }
+
+    const venues = await r.json();
+    if (!Array.isArray(venues)) {
+      console.error('partner returned an unexpected shape (expected an array of venues)');
+      return res.status(502).json({ code: 502, message: 'Partner data unavailable' });
+    }
+
+    res.json(venues.map((v) => {
+      const a = v.accessibility || {};
+      return {
+        name: v.name,
+        area: v.area,
+        address: v.address,
+        ramp: a.ramp === true,
+        accessibleToilet: a.accessibleToilet === true,
+        accessibleParking: a.accessibleParking === true,
+        featureCount: Object.values(a).filter((x) => x === true).length,
+      };
+    }));
+  } catch (err) {
+    console.error('partner call failed:', err.cause?.code || err.message);
+    res.status(502).json({ code: 502, message: 'Partner data unavailable' });
+  }
+});
+
 app.use((req, res) => {
   res.status(404).json({ code: 404, message: `Route ${req.method} ${req.path} not found` });
 });

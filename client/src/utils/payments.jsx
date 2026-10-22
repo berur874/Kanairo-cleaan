@@ -9,6 +9,13 @@ export async function getDashboardSummary() {
     return res.json();
 }
 
+/** Accessible market venues from our upstream partner (Group 12), proxied through our own server. */
+export async function getPartnerMarketVenues() {
+    const res = await fetch(`${API_URL}/partner/market-venues`);
+    if (!res.ok) throw new Error(`Partner data unavailable: ${res.status}`);
+    return res.json();
+}
+
 export function showSuccessNotification(message = 'Transaction complete') {
     let container = document.getElementById('mpesa-alert-container');
     if (!container) {

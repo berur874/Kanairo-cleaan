@@ -1,7 +1,11 @@
 const request = require('supertest');
 
 // Set this to your partner's running server URL (local or Render live URL)
-const BASE_URL = process.env.PARTNER_API_URL || 'https://accessmap-nairobi-api-1.onrender.com';
+const BASE_URL = process.env.PARTNER_URL || 'https://accessmap-nairobi-api-1.onrender.com';
+
+// The POST tests create real venues and reports in Group 12's live data (see INTEGRATION_LOG.md row 6).
+// They only run when PARTNER_WRITE_TESTS=1, e.g. against a local copy of their server.
+const describeWrites = process.env.PARTNER_WRITE_TESTS === '1' ? describe : describe.skip;
 
 describe('Partner API Contract Tests - AccessMap Nairobi', () => {
 
@@ -63,7 +67,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
   // ---------------------------------------------------------------------------
   // 2. POST /api/venues
   // ---------------------------------------------------------------------------
-  describe('POST /api/venues', () => {
+  describeWrites('POST /api/venues', () => {
     const validVenue = {
       name: `Test Venue ${Date.now()}`,
       area: 'Westlands',
@@ -191,7 +195,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
   // ---------------------------------------------------------------------------
   // 5. POST /api/reports
   // ---------------------------------------------------------------------------
-  describe('POST /api/reports', () => {
+  describeWrites('POST /api/reports', () => {
     it('returns 201 and creates a new report given valid data (Happy Path)', async () => {
       const validReport = {
         venueId: 'v_001',
