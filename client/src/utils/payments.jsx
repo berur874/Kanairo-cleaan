@@ -19,6 +19,53 @@ export async function getPartnerVenues(category = 'market') {
     return res.json();
 }
 
+/** Group 12's 8 accessibility features, from the Accessibility object in their contract, with display labels. */
+export const ACCESSIBILITY_FEATURES = [
+    ['ramp', 'Ramp'],
+    ['lift', 'Lift'],
+    ['accessibleToilet', 'Accessible toilet'],
+    ['accessibleParking', 'Accessible parking'],
+    ['tactilePaving', 'Tactile paving'],
+    ['wideCorridors', 'Wide corridors'],
+    ['audioAssistance', 'Audio assistance'],
+    ['staffAssistance', 'Staff assistance'],
+];
+
+/** Throws with the server's message (e.g. Group 12's validation error) so forms can show it. */
+async function partnerJson(res) {
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(body?.message || `Partner data unavailable: ${res.status}`);
+    return body;
+}
+
+/** Full details of one venue: address, coordinates and all 8 accessibility features. */
+export async function getPartnerVenue(slug) {
+    return partnerJson(await fetch(`${API_URL}/partner/venues/${encodeURIComponent(slug)}`));
+}
+
+/** Average community rating for one venue: { averageRating, totalReports }. */
+export async function getPartnerVenueRating(slug) {
+    return partnerJson(await fetch(`${API_URL}/partner/venues/${encodeURIComponent(slug)}/rating`));
+}
+
+/** Adds a venue to Group 12's live directory. */
+export async function addPartnerVenue(venue) {
+    return partnerJson(await fetch(`${API_URL}/partner/venues`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(venue),
+    }));
+}
+
+/** Submits an accessibility report (rating 1-5) for a venue to Group 12. */
+export async function submitPartnerReport(report) {
+    return partnerJson(await fetch(`${API_URL}/partner/reports`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report),
+    }));
+}
+
 export function showSuccessNotification(message = 'Transaction complete') {
     let container = document.getElementById('mpesa-alert-container');
     if (!container) {

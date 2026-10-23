@@ -434,53 +434,166 @@ app.get('/dashboard/summary', async (req, res) => {
 });
 
 // Week 10: upstream partner (Group 12, AccessMap Nairobi). Called from the server so their key never reaches the browser.
-// Field names follow Group 12's openapi.yaml Venue schema exactly.
+// Field names follow Group 12's openapi.yaml Venue and Report schemas exactly.
 // Venue.category enum from Group 12's contract.
 const PARTNER_CATEGORIES = ['market', 'hospital', 'school', 'transport', 'office', 'bank', 'other'];
+// The 8 booleans in Group 12's Accessibility object.
+const ACCESSIBILITY_FEATURES = [
+  'ramp', 'lift', 'accessibleToilet', 'accessibleParking',
+  'tactilePaving', 'wideCorridors', 'audioAssistance', 'staffAssistance',
+];
+// Slugs are lowercase words joined by hyphens; anything else never reaches Group 12.
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+class PartnerUnavailable extends Error {}
+
+// Calls Group 12 and returns { status, body }. Throws PartnerUnavailable when they cannot be reached.
+async function callPartner(path, { method = 'GET', body } = {}) {
+  const PARTNER_URL = process.env.PARTNER_URL;
+  const PARTNER_KEY = process.env.PARTNER_API_KEY; // never log this
+  if (!PARTNER_URL) throw new PartnerUnavailable('PARTNER_URL is not set');
+
+  // Group 12 has not issued keys yet; send the header only once we have one.
+  const headers = PARTNER_KEY ? { 'X-API-Key': PARTNER_KEY } : {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+
+  let r;
+  try {
+    r = await fetch(`${PARTNER_URL}${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new PartnerUnavailable(err.cause?.code || err.message);
+  }
+  return { status: r.status, body: await r.json().catch(() => null) };
+}
+
+// Group 12's 400/404/409 answers describe the caller's input, so they are passed on with their message.
+// Anything else (5xx, auth, a failed call) becomes our 502.
+function sendPartnerFailure(res, err) {
+  if (!(err instanceof PartnerUnavailable) && [400, 404, 409].includes(err.status)) {
+    return res.status(err.status).json({ code: err.status, message: err.body?.error || 'Partner rejected the request' });
+  }
+  console.error('partner call failed:', err instanceof PartnerUnavailable ? err.message : `status ${err.status}`);
+  res.status(502).json({ code: 502, message: 'Partner data unavailable' });
+}
+
+function pickAccessibility(a) {
+  if (!a || typeof a !== 'object') return undefined;
+  return Object.fromEntries(ACCESSIBILITY_FEATURES.map((k) => [k, a[k]]));
+}
+
+// GET /api/venues
 app.get('/partner/venues', async (req, res) => {
   const category = req.query.category ?? 'market';
   if (!PARTNER_CATEGORIES.includes(category)) {
     return buildBadRequest(res, `category must be one of: ${PARTNER_CATEGORIES.join(', ')}`);
   }
 
-  const PARTNER_URL = process.env.PARTNER_URL;
-  const PARTNER_KEY = process.env.PARTNER_API_KEY; // never log this
-  if (!PARTNER_URL) {
-    console.error('partner call skipped: PARTNER_URL is not set');
-    return res.status(502).json({ code: 502, message: 'Partner data unavailable' });
-  }
-
   try {
-    // Group 12 has not issued keys yet; send the header only once we have one.
-    const headers = PARTNER_KEY ? { 'X-API-Key': PARTNER_KEY } : {};
-    const r = await fetch(`${PARTNER_URL}/api/venues?category=${category}`, { headers });
-    if (!r.ok) {
-      console.error('partner returned', r.status);
-      return res.status(502).json({ code: 502, message: 'Partner data unavailable' });
-    }
-
-    const venues = await r.json();
-    if (!Array.isArray(venues)) {
+    const r = await callPartner(`/api/venues?category=${category}`);
+    if (r.status !== 200) return sendPartnerFailure(res, r);
+    if (!Array.isArray(r.body)) {
       console.error('partner returned an unexpected shape (expected an array of venues)');
       return res.status(502).json({ code: 502, message: 'Partner data unavailable' });
     }
 
-    res.json(venues.map((v) => {
+    res.json(r.body.map((v) => {
       const a = v.accessibility || {};
       return {
+        id: v.id,
+        slug: v.slug,
         name: v.name,
         area: v.area,
         address: v.address,
         ramp: a.ramp === true,
         accessibleToilet: a.accessibleToilet === true,
         accessibleParking: a.accessibleParking === true,
-        featureCount: Object.values(a).filter((x) => x === true).length,
+        featureCount: ACCESSIBILITY_FEATURES.filter((k) => a[k] === true).length,
       };
     }));
   } catch (err) {
-    console.error('partner call failed:', err.cause?.code || err.message);
-    res.status(502).json({ code: 502, message: 'Partner data unavailable' });
+    sendPartnerFailure(res, err);
+  }
+});
+
+// GET /api/venues/:slug
+app.get('/partner/venues/:slug', async (req, res) => {
+  const { slug } = req.params;
+  if (!SLUG_PATTERN.test(slug)) return buildBadRequest(res, 'slug must be lowercase letters, digits and hyphens');
+
+  try {
+    const r = await callPartner(`/api/venues/${slug}`);
+    if (r.status !== 200) return sendPartnerFailure(res, r);
+
+    const v = r.body || {};
+    res.json({
+      id: v.id,
+      slug: v.slug,
+      name: v.name,
+      area: v.area,
+      address: v.address,
+      category: v.category,
+      accessibility: pickAccessibility(v.accessibility),
+      coordinates: v.coordinates,
+    });
+  } catch (err) {
+    sendPartnerFailure(res, err);
+  }
+});
+
+// GET /api/venues/:slug/rating
+app.get('/partner/venues/:slug/rating', async (req, res) => {
+  const { slug } = req.params;
+  if (!SLUG_PATTERN.test(slug)) return buildBadRequest(res, 'slug must be lowercase letters, digits and hyphens');
+
+  try {
+    const r = await callPartner(`/api/venues/${slug}/rating`);
+    if (r.status !== 200) return sendPartnerFailure(res, r);
+    res.json({
+      slug: r.body?.slug,
+      averageRating: Number(r.body?.averageRating) || 0,
+      totalReports: Number(r.body?.totalReports) || 0,
+    });
+  } catch (err) {
+    sendPartnerFailure(res, err);
+  }
+});
+
+// POST /api/venues. Writes to Group 12's live directory.
+app.post('/partner/venues', async (req, res) => {
+  const { name, area, address, category, accessibility, coordinates } = req.body || {};
+  if (category !== undefined && !PARTNER_CATEGORIES.includes(category)) {
+    return buildBadRequest(res, `category must be one of: ${PARTNER_CATEGORIES.join(', ')}`);
+  }
+
+  try {
+    const r = await callPartner('/api/venues', {
+      method: 'POST',
+      body: { name, area, address, category, accessibility: pickAccessibility(accessibility), coordinates },
+    });
+    if (r.status !== 201) return sendPartnerFailure(res, r);
+    res.status(201).json(r.body);
+  } catch (err) {
+    sendPartnerFailure(res, err);
+  }
+});
+
+// POST /api/reports. Writes to Group 12's live data.
+app.post('/partner/reports', async (req, res) => {
+  const { venueId, rating, description, visitedAt, accessibility } = req.body || {};
+
+  try {
+    const r = await callPartner('/api/reports', {
+      method: 'POST',
+      body: { venueId, rating, description, visitedAt, accessibility: pickAccessibility(accessibility) },
+    });
+    if (r.status !== 201) return sendPartnerFailure(res, r);
+    res.status(201).json(r.body);
+  } catch (err) {
+    sendPartnerFailure(res, err);
   }
 });
 
