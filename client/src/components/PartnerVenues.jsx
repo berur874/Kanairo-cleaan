@@ -7,6 +7,7 @@ import {
     getPartnerVenueRating,
     addPartnerVenue,
     submitPartnerReport,
+    showSuccessNotification,
 } from '../utils/payments.jsx';
 
 // Upstream partner: Group 12, AccessMap Nairobi. Uses all 5 of their endpoints through our server:
@@ -41,13 +42,13 @@ function ReportForm({ venue, onSubmitted }) {
     const [visitedAt, setVisitedAt] = useState(today);
     const [description, setDescription] = useState('');
     const [features, setFeatures] = useState(() => ({ ...noFeatures(), ...venue.accessibility }));
-    const [status, setStatus] = useState('');
+    const [status, setStatus] = useState(null);
     const [submitting, setSubmitting] = useState(false);
 
     async function handleSubmit(e) {
         e.preventDefault();
         setSubmitting(true);
-        setStatus('');
+        setStatus(null);
         try {
             await submitPartnerReport({
                 venueId: venue.id,
@@ -56,11 +57,12 @@ function ReportForm({ venue, onSubmitted }) {
                 description: description.trim() || undefined,
                 accessibility: features,
             });
-            setStatus(`Report sent to AccessMap for ${venue.name}. Thank you!`);
+            showSuccessNotification('Report successfully sent');
+            setStatus({ ok: true, text: `✓ Report successfully sent to AccessMap for ${venue.name}.` });
             setDescription('');
             onSubmitted();
         } catch (err) {
-            setStatus(`Could not send the report: ${err.message}`);
+            setStatus({ ok: false, text: `Could not send the report: ${err.message}` });
         } finally {
             setSubmitting(false);
         }
@@ -105,7 +107,11 @@ function ReportForm({ venue, onSubmitted }) {
                     {submitting ? 'Sending…' : 'Send Report'}
                 </button>
             </form>
-            {status && <p className="dash-form-status">{status}</p>}
+            {status && (
+                <p className={`dash-form-status${status.ok ? ' success' : ' error'}`} role="status">
+                    {status.text}
+                </p>
+            )}
         </div>
     );
 }

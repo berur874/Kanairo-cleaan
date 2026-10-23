@@ -12,14 +12,14 @@
    * **Volume:** Low — used during hotspot planning, not per page load
    * **Auth:** No authentication required
 
-2. **Kanairo-Klean** needs to **read a venue's address/geolocation**, in order to **plot verified reference points on its own collection hotspot map**.
-   * **Freshness:** Updated within a day
-   * **Volume:** Low
+2. **Kanairo-Klean** needs to **write an accessibility report (star rating, visit date, notes and the accessibility features we observed) for a venue after a site visit**, in order to **record whether a candidate hotspot site is really accessible to our collection vehicles and staff, and keep AccessMap's ratings accurate for everyone who relies on them**.
+   * **Freshness:** The new report should count towards the venue's rating immediately
+   * **Volume:** Low — one report per site visit
    * **Auth:** No authentication required
 
-3. **Kanairo-Klean** needs to **read a venue's accessibility badges (e.g., ramp, wide corridors, accessible parking)**, in order to **confirm collection vehicles and staff can physically access a site before designating it a drop-off hotspot**.
-   * **Freshness:** Updated within a day is fine
-   * **Volume:** Low — checked once per candidate site, not constantly
+3. **Kanairo-Klean** needs to **write a new venue (name, area, address, category, coordinates and accessibility features)**, in order to **add markets and sites our hub managers find on the ground that AccessMap does not list yet, so they can be assessed as hotspot locations and shared with other AccessMap users**.
+   * **Freshness:** The new venue should appear in the venue list immediately
+   * **Volume:** Very low — only when a missing site is found
    * **Auth:** No authentication required
 
 4. **Kanairo-Klean** needs to **read a venue's average community star rating**, in order to **prioritize partnering with well-reviewed, trusted locations as collection hotspots**.
