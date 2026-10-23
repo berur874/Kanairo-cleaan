@@ -18,6 +18,8 @@ async function run(sqlFile, { withDatabase } = { withDatabase: true }) {
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
+    port: Number(process.env.DB_PORT) || 3306,
+    ssl: process.env.DB_SSL === 'true' ? { minVersion: 'TLSv1.2' } : undefined,
     database: withDatabase ? process.env.DB_NAME : undefined,
     multipleStatements: true,
   });
@@ -34,6 +36,8 @@ async function ensureScrapLogsColumns() {
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
+    port: Number(process.env.DB_PORT) || 3306,
+    ssl: process.env.DB_SSL === 'true' ? { minVersion: 'TLSv1.2' } : undefined,
     database: process.env.DB_NAME,
     multipleStatements: true,
   });
@@ -83,6 +87,8 @@ async function ensureHotspotCounty() {
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
+    port: Number(process.env.DB_PORT) || 3306,
+    ssl: process.env.DB_SSL === 'true' ? { minVersion: 'TLSv1.2' } : undefined,
     database: process.env.DB_NAME,
   });
 
