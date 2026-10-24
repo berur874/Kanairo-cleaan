@@ -175,7 +175,7 @@ app.get('/materials/market', async (req, res) => {
 app.get('/collection-locations/showcase', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT h.id, h.name, h.area, m.name AS material, h.activity, h.stock_kg AS stock, h.active
+      `SELECT h.id, h.name, h.area, m.name AS material, h.activity, h.stock_kg AS stock, h.active, h.lat, h.lng
        FROM hotspots h
        LEFT JOIN materials m ON h.primary_material_id = m.id`
     );

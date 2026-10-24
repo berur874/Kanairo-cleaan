@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { loadSiteData } from '../utils/data-loader.jsx';
 import { getHotspotShowcase, getMaterials, simulatePrices } from '../utils/marketData.jsx';
 import { Dot, Ticker } from '../components/Shared.jsx';
@@ -9,8 +10,7 @@ export default function Home() {
     const [hotspots, setHotspots] = useState([]);
     const [prices, setPrices] = useState([]);
     const [activeTab, setActiveTab] = useState('collector');
-    const [waitlistEmail, setWaitlistEmail] = useState('');
-    const waitlistSectionRef = useRef(null);
+    const joinSectionRef = useRef(null);
 
 
     useEffect(() => {
@@ -75,14 +75,8 @@ export default function Home() {
     }, [siteData, hotspots, prices, activeTab]);
 
  
-    const handleScrollToWaitlist = () => {
-        waitlistSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
-
-    const handleWaitlistSubmit = (e) => {
-        e.preventDefault();
-        alert(`You're on the list! We'll reach out at ${waitlistEmail} before the Q1 2026 launch.`);
-        setWaitlistEmail('');
+    const handleScrollToRates = () => {
+        document.getElementById('live-market')?.scrollIntoView({ behavior: 'smooth' });
     };
 
     // Render loading states
@@ -115,14 +109,10 @@ export default function Home() {
                     </p>
 
                     <div className="hero-ctas reveal d3">
-                        <button 
-                            type="button" 
-                            className="btn" 
-                            onClick={handleScrollToWaitlist}
-                        >
-                            Join the Exchange
+                        <Link to="/signup" className="btn">Join the Exchange</Link>
+                        <button type="button" className="btn btn-outline" onClick={handleScrollToRates}>
+                            View Live Rates →
                         </button>
-                        <a href="marketplace" className="btn btn-outline">View Live Rates →</a>
                     </div>
                 </div>
 
@@ -141,7 +131,7 @@ export default function Home() {
                     <div className="section-head-meta reveal reveal-r">
                         <Dot />
                         <span>Updating every 3s</span>
-                        <a href="marketplace" className="text-link">Full Market →</a>
+                        <Link to="/signup" className="text-link">Start trading →</Link>
                     </div>
                 </div>
 
@@ -197,7 +187,7 @@ export default function Home() {
                             Verified collection nodes mapped across Nairobi. Inventory logged in real-time.
                         </p>
                     </div>
-                    <a href="marketplace" className="text-link reveal reveal-r">View All →</a>
+                    <Link to="/signup" className="text-link reveal reveal-r">Sign up to trade →</Link>
                 </div>
                 <div className="hotspots-grid">
                     {hotspots.map((hs, i) => (
@@ -303,32 +293,24 @@ export default function Home() {
                         your waste recovery operation into a fully auditable compliance asset — automatically.
                     </p>
                     <div className="epr-ctas">
-                        <a href="compliance" className="btn">Get EPR Ready →</a>
-                        <a href="about" className="btn btn-outline">Learn More</a>
+                        <Link to="/signup" className="btn">Get Started →</Link>
+                        <Link to="/login" className="btn btn-outline">Log in</Link>
                     </div>
                 </div>
             </section>
 
-            <section id="waitlist" ref={waitlistSectionRef}>
+            <section id="waitlist" ref={joinSectionRef}>
                 <div className="waitlist-inner reveal">
-                    <span className="eyebrow">— Early Access</span>
+                    <span className="eyebrow">— Get Started</span>
                     <h2 className="section-header">Join the Exchange</h2>
                     <p>
-                        Kanairo is onboarding its first Micro-Hubs across Nairobi in Q1 2026. Join the waitlist to
-                        secure your position.
+                        Sell the scrap you collect, buy verified materials, or run a hub. Create a free account and
+                        we will match you with the right hubs across Nairobi.
                     </p>
-                    <form id="waitlist-form" onSubmit={handleWaitlistSubmit}>
-                        <input 
-                            type="email" 
-                            id="waitlist-email" 
-                            placeholder="your@email.com" 
-                            required 
-                            value={waitlistEmail}
-                            onChange={(e) => setWaitlistEmail(e.target.value)}
-                        />
-                        <button type="submit">Join</button>
-                    </form>
-                    <p className="waitlist-note">No spam. Nairobi-only beta in Q1 2026.</p>
+                    <div className="epr-ctas">
+                        <Link to="/signup" className="btn">Create an account</Link>
+                        <Link to="/login" className="btn btn-outline">Log in</Link>
+                    </div>
                 </div>
             </section>
         </main>

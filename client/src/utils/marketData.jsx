@@ -8,6 +8,7 @@ export async function getMaterials() {
     return rows.map((m) => ({
         id: m.id,
         name: m.name,
+        type: m.type,
         price: Number(m.price),
         unit: m.unit,
         change: Number(m.change_pct),
@@ -20,11 +21,15 @@ export async function getHotspotShowcase() {
     if (!res.ok) throw new Error(`Failed to load hotspots: ${res.status}`);
     const rows = await res.json();
     return rows.map((h) => ({
+        id: h.id,
         name: h.name,
         material: h.material,
         activity: h.activity,
         stock: h.stock,
         active: Boolean(h.active),
+        area: h.area,
+        lat: h.lat === null ? null : Number(h.lat),
+        lng: h.lng === null ? null : Number(h.lng),
     }));
 }
 
