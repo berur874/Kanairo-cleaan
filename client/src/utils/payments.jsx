@@ -2,13 +2,6 @@
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-/** Aggregate revenue/weight/transaction-count totals plus a 7-day breakdown. */
-export async function getDashboardSummary() {
-    const res = await fetch(`${API_URL}/dashboard/summary`);
-    if (!res.ok) throw new Error(`Failed to load dashboard summary: ${res.status}`);
-    return res.json();
-}
-
 /** Group 12's venue categories, from the Venue.category enum in their contract. */
 export const PARTNER_CATEGORIES = ['market', 'hospital', 'school', 'transport', 'office', 'bank', 'other'];
 
@@ -113,52 +106,4 @@ export function showSuccessNotification(message = 'Transaction complete') {
         box.style.transform = 'translateY(-10px)';
         setTimeout(() => box.remove(), 300);
     }, 4500);
-}
-
-/**
- * Records an M-Pesa purchase as a transaction row in the database (the
- * server also deducts the purchased quantity from inventory). Returns the
- * saved transaction.
- */
-export async function recordTransaction({ material, quantity, amount }) {
-    const res = await fetch(`${API_URL}/transactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ material, quantity, amount }),
-    });
-    if (!res.ok) throw new Error(`Failed to record transaction: ${res.status}`);
-    const data = await res.json();
-
-    return {
-        id: data.id,
-        material: data.material,
-        quantity: Number(data.quantity),
-        amount: Number(data.amount),
-        date: new Date(data.created_at).toLocaleString('en-KE', { dateStyle: 'short', timeStyle: 'short' }),
-    };
-}
-
-/**
- * Fires once with the current transactions snapshot (no polling/live push —
- * this is a one-shot read from the DB). Returns a no-op unsubscribe for
- * call-site compatibility.
- */
-export function onTransactionsChange(callback, limit = 50) {
-    getTransactions(limit).then(callback).catch((err) => console.error('Failed to refresh transactions:', err));
-    return () => {};
-}
-
-/** Fetch recent transactions, most recent first. */
-export async function getTransactions(limit = 50) {
-    const res = await fetch(`${API_URL}/transactions?limit=${limit}`);
-    if (!res.ok) throw new Error(`Failed to load transactions: ${res.status}`);
-    const rows = await res.json();
-
-    return rows.map((t) => ({
-        id: t.id,
-        material: t.material,
-        quantity: Number(t.quantity),
-        amount: Number(t.amount),
-        date: new Date(t.created_at).toLocaleString('en-KE', { dateStyle: 'short', timeStyle: 'short' }),
-    }));
 }

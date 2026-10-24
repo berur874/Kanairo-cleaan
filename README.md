@@ -259,14 +259,34 @@ Malformed JSON also returns `code` and `message`. Database failures return `500`
 
 See [`openapi.yaml`](openapi.yaml) for the OpenAPI 3.0 contract (version 1.1.0), including request and response schemas.
 
-If you set up a database before version 1.1.0, run `npm run db:schema` in `server` again. It adds the new `county` column and `drop_offs` table without deleting data.
+If you set up a database before version 1.1.0, or before the webapp accounts were added, run `npm run db:schema` in `server` again. It adds the missing tables and columns (`county`, `drop_offs`, `users`, `sessions`, and the seller and buyer columns) without deleting data.
 
-## Optional: run the web client
+## Optional: run the Kanairo webapp
 
-The API and Vite client run separately. To start the client in another terminal:
+The webapp is Kanairo's own app for its users. It uses separate user logins, not the partner API token above, and adding it did not change any of the endpoints in this README.
+
+| Role | What they do |
+| --- | --- |
+| Seller | Logs scrap they collected and gets matched to a hub. The hub weighs it and pays them on M-Pesa |
+| Hub manager | Weighs incoming scrap (including drop-offs reported through this API), pays sellers, and hands paid orders over to buyers |
+| Buyer | Says what material they need, picks a recommended hub that has it in stock, and pays |
+
+At signup every user is asked about accessibility needs. If they have any, hubs are ranked by the accessible AccessMap Nairobi venues (from Group 12's API) near each hub.
+
+With the API running, create `client/.env` containing `VITE_API_URL=http://localhost:5050`, then start the client in another terminal:
 
 ```sh
 cd client
 npm ci
 npm run dev
 ```
+
+Open http://localhost:5173. `npm run db:seed` creates one demo account per role, all with the password `kanairo123`:
+
+| Phone | Role |
+| --- | --- |
+| `0711000001` | Seller (needs a ramp and an accessible toilet) |
+| `0711000002` | Buyer |
+| `0711000003` | Hub manager for Dandora |
+
+The webapp's routes are documented at the top of [`server/auth.js`](server/auth.js) (accounts) and in [`server/marketplace.js`](server/marketplace.js) (selling, hubs and buying).

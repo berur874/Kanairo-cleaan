@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { createAuth } = require('./auth');
-const { createMarketplace, buildSummary, generateReceipt } = require('./marketplace');
+const { createMarketplace } = require('./marketplace');
 const { ACCESSIBILITY_FEATURES } = require('./accessibility');
 
 const app = express();
@@ -310,103 +310,9 @@ app.get('/hotspots', async (req, res) => {
   }
 });
 
-app.post('/hotspots/inventory', async (req, res) => {
-  const { hotspotName, materialName, quantity } = req.body;
-  if (!hotspotName || !materialName || !quantity) {
-    return res.status(400).json({ error: 'hotspotName, materialName and quantity are required' });
-  }
-  try {
-    const [existing] = await pool.query('SELECT id FROM hotspots WHERE name = ?', [hotspotName]);
-    let hotspotId = existing.length ? existing[0].id : null;
-    if (!hotspotId) {
-      const [result] = await pool.query('INSERT INTO hotspots (name) VALUES (?)', [hotspotName]);
-      hotspotId = result.insertId;
-    }
-
-    await pool.query(
-      `INSERT INTO hotspot_materials (hotspot_id, material_name, quantity)
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)`,
-      [hotspotId, materialName, quantity]
-    );
-
-    res.status(201).json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/inventory/deduct', async (req, res) => {
-  const { materialName, quantity } = req.body;
-  if (!materialName || !quantity) {
-    return res.status(400).json({ error: 'materialName and quantity are required' });
-  }
-  try {
-    const [rows] = await pool.query(
-      'SELECT id, quantity FROM hotspot_materials WHERE material_name = ? AND quantity > 0',
-      [materialName]
-    );
-    let remaining = quantity;
-    for (const row of rows) {
-      if (remaining <= 0) break;
-      const take = Math.min(Number(row.quantity), remaining);
-      await pool.query('UPDATE hotspot_materials SET quantity = quantity - ? WHERE id = ?', [take, row.id]);
-      remaining -= take;
-    }
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/transactions', async (req, res) => {
-  const limit = Number(req.query.limit) || 50;
-  try {
-    const [rows] = await pool.query('SELECT * FROM transactions ORDER BY created_at DESC LIMIT ?', [limit]);
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/transactions', async (req, res) => {
-  const { material, quantity, amount } = req.body;
-  if (!material || !quantity || !amount) {
-    return res.status(400).json({ error: 'material, quantity and amount are required' });
-  }
-  const id = generateReceipt();
-  try {
-    await pool.query(
-      'INSERT INTO transactions (id, material, quantity, amount) VALUES (?, ?, ?, ?)',
-      [id, material, quantity, amount]
-    );
-
-    const [rows] = await pool.query(
-      'SELECT id, quantity FROM hotspot_materials WHERE material_name = ? AND quantity > 0',
-      [material]
-    );
-    let remaining = quantity;
-    for (const row of rows) {
-      if (remaining <= 0) break;
-      const take = Math.min(Number(row.quantity), remaining);
-      await pool.query('UPDATE hotspot_materials SET quantity = quantity - ? WHERE id = ?', [take, row.id]);
-      remaining -= take;
-    }
-
-    const [[saved]] = await pool.query('SELECT * FROM transactions WHERE id = ?', [id]);
-    res.status(201).json(saved);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/dashboard/summary', async (req, res) => {
-  try {
-    res.json(await buildSummary(pool));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// The old website's open write routes (POST /transactions, /hotspots/inventory, /inventory/deduct)
+// let anyone change stock or record sales. Those changes now go through the logged-in seller,
+// hub and buyer routes in marketplace.js.
 
 // Week 10: upstream partner (Group 12, AccessMap Nairobi). Called from the server so their key never reaches the browser.
 // Field names follow Group 12's openapi.yaml Venue and Report schemas exactly.

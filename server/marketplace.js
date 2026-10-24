@@ -1,5 +1,13 @@
-// Webapp buying and selling: hub recommendations for sellers and buyers.
-// Every route needs a logged-in user (see auth.js).
+// Webapp buying and selling. Every route needs a logged-in user (see auth.js).
+//
+//   GET  /recommendations/hubs?material_id=&quantity_kg=&mode=sell|buy[&lat=&lng=]  any user
+//   POST /sell/drop-offs, GET /sell/drop-offs                                      seller
+//   GET  /hub/drop-offs?status=, POST /hub/drop-offs/:drop_off_id/receive          hub manager (own hub)
+//   GET  /hub/orders?status=, POST /hub/orders/:id/collect, GET /hub/summary       hub manager (own hub)
+//   POST /buy/orders, GET /buy/orders                                              buyer
+//
+// Flow: a seller logs scrap at a hub (pending) → the hub weighs it, which sets the seller's payout
+// and adds the stock → a buyer orders from that hub's stock (paid) → the hub hands it over (collected).
 
 const express = require('express');
 const { ACCESSIBILITY_FEATURES } = require('./accessibility');
@@ -550,4 +558,4 @@ async function buildSummary(pool, hotspotId = null) {
   };
 }
 
-module.exports = { createMarketplace, buildSummary, generateReceipt, distanceKm, ACCESS_RADIUS_KM };
+module.exports = { createMarketplace, distanceKm, ACCESS_RADIUS_KM };

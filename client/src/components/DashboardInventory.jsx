@@ -1,7 +1,5 @@
 // src/components/DashboardInventory.jsx
-import React, { useState, useEffect } from 'react';
-import { addInventory, aggregateInventory } from '../utils/storage.jsx';
-import { getMaterials, getHotspotShowcase } from '../utils/marketData.jsx';
+import { aggregateInventory } from '../utils/storage.jsx';
 
 const MATERIAL_COLORS = {
     'PET Plastic': '#22c55e',
@@ -83,105 +81,6 @@ export function InventoryBars({ hotspots = [], loading = false }) {
                     </div>
                 ))
             )}
-        </div>
-    );
-}
-
-export function LogMaterialForm() {
-    const [hotspotNames, setHotspotNames] = useState([]);
-    const [materialNames, setMaterialNames] = useState([]);
-    const [hotspot, setHotspot] = useState('');
-    const [material, setMaterial] = useState('');
-    const [qty, setQty] = useState('');
-    const [status, setStatus] = useState('');
-    const [submitting, setSubmitting] = useState(false);
-
-    useEffect(() => {
-        let alive = true;
-        getHotspotShowcase().then((hs) => {
-            if (alive) setHotspotNames(hs.map((h) => h.name));
-        });
-        getMaterials().then((m) => {
-            if (alive) setMaterialNames(m.map((x) => x.name));
-        });
-        return () => { alive = false; };
-    }, []);
-
-    async function handleSubmit(e) {
-        e.preventDefault();
-        const quantity = parseInt(qty, 10);
-        if (!hotspot || !material || !quantity) return;
-
-        setSubmitting(true);
-        try {
-            await addInventory(hotspot, material, quantity);
-            setStatus(`Logged ${quantity} kg of ${material} at ${hotspot}.`);
-            setHotspot('');
-            setMaterial('');
-            setQty('');
-        } catch (err) {
-            console.error('Failed to log inventory:', err);
-            setStatus('Something went wrong saving that — please try again.');
-        } finally {
-            setSubmitting(false);
-        }
-    }
-
-    return (
-        <div>
-            <form className="dash-form" onSubmit={handleSubmit}>
-                <div className="dash-form-field">
-                    <label htmlFor="hotspot-select">Hotspot</label>
-                    <input
-                        id="hotspot-select"
-                        type="text"
-                        aria-label="Hotspot list input"
-                        list="hotspot-list"
-                        required
-                        placeholder="Type or select…"
-                        value={hotspot}
-                        onChange={(e) => setHotspot(e.target.value)}
-                    />
-                    <datalist id="hotspot-list">
-                        {hotspotNames.map((n) => <option key={n} value={n} />)}
-                    </datalist>
-                </div>
-
-                <div className="dash-form-field">
-                    <label htmlFor="material-select">Material</label>
-                    <input
-                        id="material-select"
-                        type="text"
-                        aria-label="Material list input"
-                        list="material-list"
-                        required
-                        placeholder="Type or select…"
-                        value={material}
-                        onChange={(e) => setMaterial(e.target.value)}
-                    />
-                    <datalist id="material-list">
-                        {materialNames.map((n) => <option key={n} value={n} />)}
-                    </datalist>
-                </div>
-
-                <div className="dash-form-field">
-                    <label htmlFor="quantity-input">Quantity (kg)</label>
-                    <input
-                        id="quantity-input"
-                        type="number"
-                        min="1"
-                        required
-                        placeholder="e.g. 250"
-                        value={qty}
-                        onChange={(e) => setQty(e.target.value)}
-                    />
-                </div>
-
-                <button type="submit" className="btn" disabled={submitting}>
-                    {submitting ? 'Logging…' : 'Log Inventory'}
-                </button>
-            </form>
-            {status && <p className="dash-form-status">{status}</p>}
         </div>
     );
 }
