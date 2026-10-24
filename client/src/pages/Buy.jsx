@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Steps, TradeRequestForm, HubRecommendations } from '../components/Trade.jsx';
 import { AppPage, StatusChip } from '../components/AppPage.jsx';
+import VisitReport from '../components/VisitReport.jsx';
 import MpesaModal from '../components/MpesaModal.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { placeOrder, getMyOrders, formatKes, formatKg, formatDate } from '../utils/trade.jsx';
@@ -87,6 +88,7 @@ export default function Buy() {
 export function BuyOrders() {
     const [orders, setOrders] = useState(null);
     const [error, setError] = useState('');
+    const [reporting, setReporting] = useState(null);
 
     useEffect(() => {
         let alive = true;
@@ -107,18 +109,35 @@ export function BuyOrders() {
                         <div className="table-scroll">
                             <table className="app-table">
                                 <thead>
-                                    <tr><th>Receipt</th><th>Hub</th><th>Material</th><th>Weight</th><th>Paid</th><th>Status</th></tr>
+                                    <tr><th>Receipt</th><th>Hub</th><th>Material</th><th>Weight</th><th>Paid</th><th>Status</th><th><span className="sr-only">Report</span></th></tr>
                                 </thead>
                                 <tbody>
                                     {orders.map((o) => (
-                                        <tr key={o.id}>
-                                            <td><span className="mono">{o.id}</span><br /><span className="cell-sub">{formatDate(o.created_at)}</span></td>
-                                            <td>{o.hub?.name || '—'}</td>
-                                            <td>{o.material.name}</td>
-                                            <td>{formatKg(o.quantity_kg)}</td>
-                                            <td>{formatKes(o.amount_kes)}</td>
-                                            <td><StatusChip status={o.status} /></td>
-                                        </tr>
+                                        <Fragment key={o.id}>
+                                            <tr>
+                                                <td><span className="mono">{o.id}</span><br /><span className="cell-sub">{formatDate(o.created_at)}</span></td>
+                                                <td>{o.hub?.name || '—'}</td>
+                                                <td>{o.material.name}</td>
+                                                <td>{formatKg(o.quantity_kg)}</td>
+                                                <td>{formatKes(o.amount_kes)}</td>
+                                                <td><StatusChip status={o.status} /></td>
+                                                <td>
+                                                    {o.hub && (
+                                                        <button type="button" className="text-button" aria-expanded={reporting === o.id}
+                                                            onClick={() => setReporting(reporting === o.id ? null : o.id)}>
+                                                            Report the place
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                            {reporting === o.id && (
+                                                <tr className="report-row">
+                                                    <td colSpan={7}>
+                                                        <VisitReport hubId={o.hub.id} hubName={o.hub.name} onClose={() => setReporting(null)} />
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </Fragment>
                                     ))}
                                 </tbody>
                             </table>

@@ -1,6 +1,7 @@
 // Webapp buying and selling. Every route needs a logged-in user (see auth.js).
 //
 //   GET  /recommendations/hubs?material_id=&quantity_kg=&mode=sell|buy[&lat=&lng=]  any user
+//   GET  /hubs/:id/nearby-venues (AccessMap venues to report on)                   any user
 //   POST /sell/drop-offs, GET /sell/drop-offs                                      seller
 //   GET  /hub/drop-offs?status=, POST /hub/drop-offs/:drop_off_id/receive          hub manager (own hub)
 //   GET  /hub/orders?status=, POST /hub/orders/:id/collect, GET /hub/summary       hub manager (own hub)
@@ -187,6 +188,49 @@ function createMarketplace({ pool, requireUser, callPartner }) {
         accessibility_needs: needs,
         accessibility_note: accessibilityNote,
         hubs: ranked,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // AccessMap venues near a hub, so a seller or buyer who went there can report on them
+  // (the report itself goes to Group 12 through POST /partner/reports).
+  router.get('/hubs/:id/nearby-venues', requireUser(), async (req, res) => {
+    try {
+      const hub = await findActiveHub(req.params.id);
+      if (!hub) return sendError(res, 404, `Hub ${req.params.id} not found`);
+      const [[coords]] = await pool.query('SELECT lat, lng FROM hotspots WHERE id = ?', [hub.id]);
+
+      let venues;
+      try {
+        venues = await venueCache.get();
+      } catch (err) {
+        console.error('nearby venues: AccessMap unavailable:', err.message);
+        return res.json({ hub, radius_km: ACCESS_RADIUS_KM, venues: [], note: 'AccessMap is unavailable right now. Try again later.' });
+      }
+
+      const origin = { lat: Number(coords.lat), lng: Number(coords.lng) };
+      const nearby = coords.lat === null ? [] : venues
+        .filter((v) => Number.isFinite(v.coordinates?.lat) && Number.isFinite(v.coordinates?.lng))
+        .map((v) => ({ v, km: distanceKm(origin, v.coordinates) }))
+        .filter(({ km }) => km <= ACCESS_RADIUS_KM)
+        .sort((a, b) => a.km - b.km)
+        .slice(0, 5)
+        .map(({ v, km }) => ({
+          id: v.id,
+          slug: v.slug,
+          name: v.name,
+          area: v.area,
+          distance_km: round1(km),
+          accessibility: Object.fromEntries(ACCESSIBILITY_FEATURES.map((k) => [k, v.accessibility?.[k] === true])),
+        }));
+
+      res.json({
+        hub,
+        radius_km: ACCESS_RADIUS_KM,
+        venues: nearby,
+        note: nearby.length ? null : `AccessMap has no venues within ${ACCESS_RADIUS_KM} km of ${hub.name} yet.`,
       });
     } catch (err) {
       res.status(500).json({ error: err.message });

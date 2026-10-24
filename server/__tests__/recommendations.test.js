@@ -140,6 +140,30 @@ describe('GET /recommendations/hubs — accessibility (AccessMap)', () => {
     expect(hub.reasons.join(' ')).toMatch(/No AccessMap venue within 3 km/);
   });
 
+  it('lists the AccessMap venues near a hub (with their id, for reports), nearest first', async () => {
+    const far = venueNear(targetHub, { ramp: true }, 'far');
+    far.coordinates.lat += 0.1; // about 11 km away: outside the radius
+    venueCache.set([venueNear(targetHub, { lift: true }, 'near'), far]);
+
+    const res = await request(app).get(`/hubs/${targetHub.id}/nearby-venues`).set(await userWithNeeds([]));
+    expect(res.status).toBe(200);
+    expect(res.body.venues).toHaveLength(1);
+    expect(res.body.venues[0]).toMatchObject({ id: 'v_near', slug: 'near', distance_km: 0.5 });
+    expect(res.body.venues[0].accessibility).toMatchObject({ lift: true, ramp: false });
+    expect(res.body.note).toBeNull();
+  });
+
+  it('explains when a hub has no AccessMap venues nearby, and 404s for an unknown hub', async () => {
+    venueCache.set([]);
+    const auth = await userWithNeeds([]);
+    const empty = await request(app).get(`/hubs/${targetHub.id}/nearby-venues`).set(auth);
+    expect(empty.body.venues).toEqual([]);
+    expect(empty.body.note).toMatch(/no venues within 3 km/);
+
+    expect((await request(app).get('/hubs/999999/nearby-venues').set(auth)).status).toBe(404);
+    expect((await request(app).get(`/hubs/${targetHub.id}/nearby-venues`)).status).toBe(401);
+  });
+
   it('still answers, with a note, when AccessMap cannot be reached', async () => {
     const saved = process.env.PARTNER_URL;
     delete process.env.PARTNER_URL;

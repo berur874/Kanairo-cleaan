@@ -12,6 +12,9 @@ export function getRecommendations({ mode, materialId, quantityKg, origin }) {
     return apiFetch(`/recommendations/hubs?${params}`);
 }
 
+/** AccessMap venues near a hub, for reporting on the place after a visit. */
+export const getNearbyVenues = (hotspotId) => apiFetch(`/hubs/${encodeURIComponent(hotspotId)}/nearby-venues`);
+
 // Seller
 export const createDropOff = ({ hotspotId, materialId, quantityKg, notes }) =>
     apiFetch('/sell/drop-offs', {

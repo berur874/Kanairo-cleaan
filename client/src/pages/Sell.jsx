@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Steps, TradeRequestForm, HubRecommendations } from '../components/Trade.jsx';
 import { AppPage, StatusChip } from '../components/AppPage.jsx';
+import VisitReport from '../components/VisitReport.jsx';
 import { createDropOff, getMyDropOffs, formatKes, formatKg, formatDate } from '../utils/trade.jsx';
 import { showSuccessNotification } from '../utils/payments.jsx';
 
@@ -112,6 +113,7 @@ export default function Sell() {
 export function SellHistory() {
     const [drops, setDrops] = useState(null);
     const [error, setError] = useState('');
+    const [reporting, setReporting] = useState(null);
 
     useEffect(() => {
         let alive = true;
@@ -142,18 +144,33 @@ export function SellHistory() {
                         <div className="table-scroll">
                             <table className="app-table">
                                 <thead>
-                                    <tr><th>Drop-off</th><th>Hub</th><th>Material</th><th>Weight</th><th>Payout</th><th>Status</th></tr>
+                                    <tr><th>Drop-off</th><th>Hub</th><th>Material</th><th>Weight</th><th>Payout</th><th>Status</th><th><span className="sr-only">Report</span></th></tr>
                                 </thead>
                                 <tbody>
                                     {drops.map((d) => (
-                                        <tr key={d.drop_off_id}>
-                                            <td><span className="mono">{d.drop_off_id}</span><br /><span className="cell-sub">{formatDate(d.created_at)}</span></td>
-                                            <td>{d.hub.name}</td>
-                                            <td>{d.material?.name || d.material_type}</td>
-                                            <td>{formatKg(d.received_kg ?? d.quantity_kg)}{d.received_kg === null && <span className="cell-sub"> (estimate)</span>}</td>
-                                            <td>{d.payout_kes !== null ? formatKes(d.payout_kes) : d.est_payout_kes !== null ? <span className="cell-sub">≈ {formatKes(d.est_payout_kes)}</span> : '—'}</td>
-                                            <td><StatusChip status={d.status} /></td>
-                                        </tr>
+                                        <Fragment key={d.drop_off_id}>
+                                            <tr>
+                                                <td><span className="mono">{d.drop_off_id}</span><br /><span className="cell-sub">{formatDate(d.created_at)}</span></td>
+                                                <td>{d.hub.name}</td>
+                                                <td>{d.material?.name || d.material_type}</td>
+                                                <td>{formatKg(d.received_kg ?? d.quantity_kg)}{d.received_kg === null && <span className="cell-sub"> (estimate)</span>}</td>
+                                                <td>{d.payout_kes !== null ? formatKes(d.payout_kes) : d.est_payout_kes !== null ? <span className="cell-sub">≈ {formatKes(d.est_payout_kes)}</span> : '—'}</td>
+                                                <td><StatusChip status={d.status} /></td>
+                                                <td>
+                                                    <button type="button" className="text-button" aria-expanded={reporting === d.drop_off_id}
+                                                        onClick={() => setReporting(reporting === d.drop_off_id ? null : d.drop_off_id)}>
+                                                        Report the place
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            {reporting === d.drop_off_id && (
+                                                <tr className="report-row">
+                                                    <td colSpan={7}>
+                                                        <VisitReport hubId={d.hub.id} hubName={d.hub.name} onClose={() => setReporting(null)} />
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </Fragment>
                                     ))}
                                 </tbody>
                             </table>
