@@ -1,7 +1,7 @@
 // Session token handling and apiFetch(), for calls that need a logged-in user.
 // AuthContext.jsx owns the login state and keeps the token here up to date.
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5050';
 const TOKEN_KEY = 'kanairo.session';
 
 let currentToken = null;
