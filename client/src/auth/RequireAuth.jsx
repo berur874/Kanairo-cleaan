@@ -9,11 +9,11 @@ import { ROLE_HOME } from './session.js';
  * - another role's page → that user's own home
  */
 export default function RequireAuth({ roles, children }) {
-    const { user, checking } = useAuth();
+    const { user, checking, loggedOut } = useAuth();
     const location = useLocation();
 
     if (checking) return <p className="app-loading">Loading…</p>;
-    if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    if (!user) return <Navigate to="/login" replace state={loggedOut ? undefined : { from: `${location.pathname}${location.search}` }} />;
     if (user.accessibility_needs === null) return <Navigate to="/onboarding" replace />;
     if (roles && !roles.includes(user.role)) return <Navigate to={ROLE_HOME[user.role]} replace />;
 

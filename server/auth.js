@@ -6,6 +6,8 @@
 //   POST /auth/logout                                              -> 204
 //   GET  /auth/me                                                  -> 200 user
 //   PUT  /auth/me/accessibility {needs: string[]}                  -> 200 user
+//   PATCH /auth/me {name?, phone?}                                 -> 200 user (409 if the phone is taken)
+//   PUT  /auth/me/password {current_password, new_password}        -> 204 (logs out other sessions)
 //   requireUser(...roles) middleware: reads "Authorization: Bearer <token>", sets req.user,
 //   answers 401 (no/expired session) or 403 (wrong role).
 // user = {id, name, phone, role, hotspot_id, accessibility_needs}; accessibility_needs is null
@@ -191,6 +193,59 @@ function createAuth({ pool }) {
         req.user.id,
       ]);
       res.json(publicUser(await findUser(req.user.id)));
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Profile: change name and/or phone number. The phone is also the login and M-Pesa number.
+  router.patch('/me', requireUser(), async (req, res) => {
+    const { name } = req.body || {};
+    const changes = {};
+
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim() || name.trim().length > 100) {
+        return sendError(res, 400, 'name is required (at most 100 characters)');
+      }
+      changes.name = name.trim();
+    }
+    if (req.body?.phone !== undefined) {
+      const phone = normalisePhone(req.body.phone);
+      if (!phone) return sendError(res, 400, 'phone must be a Kenyan mobile number, e.g. 0712345678');
+      changes.phone = phone;
+    }
+    if (!Object.keys(changes).length) return sendError(res, 400, 'Send a name and/or phone to change');
+
+    try {
+      if (changes.phone && changes.phone !== req.user.phone) {
+        const [[taken]] = await pool.query('SELECT id FROM users WHERE phone = ? AND id <> ?', [changes.phone, req.user.id]);
+        if (taken) return sendError(res, 409, 'An account with this phone number already exists');
+      }
+      await pool.query('UPDATE users SET ? WHERE id = ?', [changes, req.user.id]);
+      res.json(publicUser(await findUser(req.user.id)));
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Change password. Every other session is logged out, so a stolen session stops working.
+  router.put('/me/password', requireUser(), async (req, res) => {
+    const { current_password: current, new_password: next } = req.body || {};
+    if (typeof current !== 'string' || typeof next !== 'string') {
+      return sendError(res, 400, 'current_password and new_password are required');
+    }
+    if (next.length < MIN_PASSWORD_LENGTH) {
+      return sendError(res, 400, `new_password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+    }
+
+    try {
+      const row = await findUser(req.user.id);
+      if (!(await verifyPassword(current, row.password_hash))) {
+        return sendError(res, 400, 'Your current password is not correct');
+      }
+      await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [await hashPassword(next), req.user.id]);
+      await pool.query('DELETE FROM sessions WHERE user_id = ? AND token_hash <> ?', [req.user.id, req.sessionTokenHash]);
+      res.status(204).end();
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

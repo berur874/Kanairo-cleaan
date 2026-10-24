@@ -110,6 +110,23 @@ describe('GET /recommendations/hubs — ranking', () => {
   });
 });
 
+describe('GET /market', () => {
+  it('lists every material with its price and the active hubs that have it', async () => {
+    const res = await request(app).get('/market').set(await userWithNeeds([]));
+    const [[{ count }]] = await pool.query('SELECT COUNT(*) AS count FROM materials');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(count);
+    const item = res.body.find((m) => m.id === material.id);
+    expect(item).toMatchObject({ name: material.name, price_per_kg: expect.any(Number) });
+    expect(item.stock_kg).toBeCloseTo(item.hubs.reduce((s, h) => s + h.stock_kg, 0), 2);
+  });
+
+  it('needs a logged-in user', async () => {
+    expect((await request(app).get('/market')).status).toBe(401);
+  });
+});
+
 describe('GET /recommendations/hubs — accessibility (AccessMap)', () => {
   it('ignores AccessMap for users without accessibility needs', async () => {
     venueCache.set([venueNear(targetHub, { ramp: true }, 'unused')]);

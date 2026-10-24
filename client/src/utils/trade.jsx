@@ -12,6 +12,9 @@ export function getRecommendations({ mode, materialId, quantityKg, origin }) {
     return apiFetch(`/recommendations/hubs?${params}`);
 }
 
+/** Every material with today's price and the stock at each active hub. */
+export const getMarket = () => apiFetch('/market');
+
 /** AccessMap venues near a hub, for reporting on the place after a visit. */
 export const getNearbyVenues = (hotspotId) => apiFetch(`/hubs/${encodeURIComponent(hotspotId)}/nearby-venues`);
 

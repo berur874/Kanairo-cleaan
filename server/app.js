@@ -38,7 +38,9 @@ if (process.env.NODE_ENV !== 'test') {
       if (res.statusCode >= 400) {
         entry.error = responseBody;
         if (req.body && Object.keys(req.body).length) {
-          entry.requestBody = 'password' in req.body ? { ...req.body, password: '[redacted]' } : req.body;
+          entry.requestBody = Object.fromEntries(Object.entries(req.body).map(
+            ([key, value]) => [key, /password/i.test(key) ? '[redacted]' : value]
+          ));
         }
       }
       console.log(`${entry.time.slice(11, 19)} ${entry.via} ${entry.method} ${entry.path} -> ${entry.status}`);

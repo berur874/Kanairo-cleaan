@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Steps, TradeRequestForm, HubRecommendations } from '../components/Trade.jsx';
 import { AppPage, StatusChip } from '../components/AppPage.jsx';
 import VisitReport from '../components/VisitReport.jsx';
@@ -11,7 +11,12 @@ const STEPS = ['What you collected', 'Choose a hub', 'Confirm drop-off'];
 /** Seller flow: log what you collected → pick a recommended hub → confirm the drop-off. */
 export default function Sell() {
     const [step, setStep] = useState(0);
-    const [request, setRequest] = useState(null);
+    // Coming from the Marketplace (?material=PET) pre-selects that material.
+    const [searchParams] = useSearchParams();
+    const [request, setRequest] = useState(() => {
+        const materialId = searchParams.get('material');
+        return materialId ? { materialId } : null;
+    });
     const [choice, setChoice] = useState(null);
     const [notes, setNotes] = useState('');
     const [saved, setSaved] = useState(null);

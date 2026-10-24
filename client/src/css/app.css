@@ -275,6 +275,62 @@ header .navbar ul { align-items: center; }
 .visit-report .venue-subhead, .visit-report .dash-form { padding-left: 0; padding-right: 0; }
 .visit-report .muted-note { padding-left: 0; }
 
+/* ---------- Profile ---------- */
+header .navbar a.nav-user {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    line-height: 1.2;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.78rem;
+}
+.profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 26px; }
+.profile-card .auth-form { padding: 6px 20px 22px; }
+.profile-card .auth-form > .btn { align-self: flex-start; }
+.profile-card .yes-no, .profile-card .feature-picker { margin-top: 14px; }
+.dash-card-note-bottom { padding-bottom: 18px; }
+.dash-card-note strong { color: var(--on-surface); }
+
+/* ---------- Marketplace and dashboards ---------- */
+.dash-form-filter .dash-form-field input[type="text"] { width: 100%; }
+.market-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.market-card {
+    display: grid;
+    gap: 14px;
+    align-content: start;
+    padding: 18px;
+    background: var(--surface);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-md);
+}
+.market-card > .btn { justify-self: start; }
+.market-card-head { display: flex; justify-content: space-between; gap: 10px; }
+.market-card-head h3 { margin: 4px 0 2px; font-family: var(--font-display); font-size: 1.2rem; font-weight: 800; text-transform: uppercase; color: var(--on-surface); }
+.market-price { display: grid; justify-items: end; gap: 2px; text-align: right; }
+.market-price-value { font-family: var(--font-mono); font-size: 0.95rem; color: var(--primary); white-space: nowrap; }
+.market-change { font-family: var(--font-mono); font-size: 0.66rem; }
+.market-change.up { color: var(--primary); }
+.market-change.down { color: #f87171; }
+.market-stock { font-size: 0.85rem; color: var(--on-surface); }
+.market-stock .hub-venues-label { display: block; margin-bottom: 2px; }
+
+.mini-list { list-style: none; margin: 0; padding: 6px 0; }
+.mini-list li {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    border-bottom: 1px solid rgba(34, 197, 94, 0.05);
+    font-size: 0.82rem;
+}
+.mini-list li:last-child { border-bottom: none; }
+.mini-list li > div:first-child { display: grid; gap: 2px; min-width: 0; }
+.mini-list strong { color: var(--on-surface); font-weight: 600; }
+.mini-list-side { display: grid; justify-items: end; gap: 2px; }
+
 /* ---------- Hub queues ---------- */
 .queue-tabs { display: flex; gap: 6px; padding: 14px 20px 0; }
 .queue-tabs button {

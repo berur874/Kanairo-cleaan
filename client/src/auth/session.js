@@ -56,6 +56,6 @@ export async function apiFetch(path, { method = 'GET', body } = {}) {
 }
 
 /** Where each kind of user lands after logging in. */
-export const ROLE_HOME = { seller: '/sell', buyer: '/buy', hub_manager: '/hub' };
+export const ROLE_HOME = { seller: '/dashboard', buyer: '/dashboard', hub_manager: '/hub' };
 
 export const ROLE_LABELS = { seller: 'Seller', buyer: 'Buyer', hub_manager: 'Hub manager' };

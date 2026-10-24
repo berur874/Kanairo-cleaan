@@ -2,89 +2,32 @@ import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { ROLE_HOME } from '../auth/session.js';
-import { ACCESSIBILITY_FEATURES } from '../utils/payments.jsx';
+import AccessibilityForm from '../components/AccessibilityForm.jsx';
 
-// Asked once after signing up (and editable later from the header). The answer decides whether
-// hub recommendations are ranked by the accessible AccessMap venues around each hub.
+// Asked once, straight after signing up. Later changes happen on the profile page.
 export default function Onboarding() {
-    const { user, checking, saveAccessibility } = useAuth();
+    const { user, checking } = useAuth();
     const navigate = useNavigate();
-    const existing = user?.accessibility_needs;
-    const [hasNeeds, setHasNeeds] = useState(existing ? existing.length > 0 : null);
-    const [needs, setNeeds] = useState(() => new Set(existing || []));
-    const [error, setError] = useState('');
-    const [saving, setSaving] = useState(false);
+    // Decided when the page opens, so saving the answer here doesn't bounce the user to /profile.
+    const [answeredBefore] = useState(() => Boolean(user && user.accessibility_needs !== null));
 
     if (checking) return <p className="app-loading">Loading…</p>;
     if (!user) return <Navigate to="/login" replace />;
-
-    function toggle(key) {
-        const next = new Set(needs);
-        if (next.has(key)) next.delete(key);
-        else next.add(key);
-        setNeeds(next);
-    }
-
-    async function handleSubmit(e) {
-        e.preventDefault();
-        if (hasNeeds && needs.size === 0) {
-            setError('Choose at least one feature you need, or answer No.');
-            return;
-        }
-        setSaving(true);
-        setError('');
-        try {
-            await saveAccessibility(hasNeeds ? [...needs] : []);
-            navigate(ROLE_HOME[user.role], { replace: true });
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setSaving(false);
-        }
-    }
+    if (answeredBefore) return <Navigate to="/profile" replace />;
 
     const otherSide = user.role === 'buyer' ? 'sellers' : 'buyers';
 
     return (
         <main className="auth-page">
             <div className="auth-card auth-card-wide">
-                <span className="eyebrow">{existing === null ? 'Step 2 of 2 · Accessibility' : 'Accessibility'}</span>
+                <span className="eyebrow">Step 2 of 2 · Accessibility</span>
                 <h1>Do you have a disability or any accessibility needs?</h1>
                 <p className="auth-sub">
                     If you do, we recommend hubs near places that have the features you need, using the
                     AccessMap Nairobi directory, so meeting {otherSide} is easier for you. You can change this
-                    at any time.
+                    at any time on your profile.
                 </p>
-
-                <form className="auth-form" onSubmit={handleSubmit}>
-                    <div className="yes-no" role="radiogroup" aria-label="Accessibility needs">
-                        <button type="button" role="radio" aria-checked={hasNeeds === true}
-                            className={`choice${hasNeeds === true ? ' selected' : ''}`} onClick={() => setHasNeeds(true)}>
-                            Yes
-                        </button>
-                        <button type="button" role="radio" aria-checked={hasNeeds === false}
-                            className={`choice${hasNeeds === false ? ' selected' : ''}`} onClick={() => setHasNeeds(false)}>
-                            No
-                        </button>
-                    </div>
-
-                    {hasNeeds && (
-                        <fieldset className="feature-picker">
-                            <legend>Which of these do you need at a meeting place?</legend>
-                            {ACCESSIBILITY_FEATURES.map(([key, label]) => (
-                                <label key={key} className={needs.has(key) ? 'selected' : ''}>
-                                    <input type="checkbox" checked={needs.has(key)} onChange={() => toggle(key)} />
-                                    {label}
-                                </label>
-                            ))}
-                        </fieldset>
-                    )}
-
-                    {error && <p className="form-error" role="alert">{error}</p>}
-                    <button type="submit" className="btn" disabled={hasNeeds === null || saving}>
-                        {saving ? 'Saving…' : 'Continue'}
-                    </button>
-                </form>
+                <AccessibilityForm submitLabel="Continue" onSaved={() => navigate(ROLE_HOME[user.role], { replace: true })} />
             </div>
         </main>
     );

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Steps, TradeRequestForm, HubRecommendations } from '../components/Trade.jsx';
 import { AppPage, StatusChip } from '../components/AppPage.jsx';
 import VisitReport from '../components/VisitReport.jsx';
@@ -14,7 +14,12 @@ const STEPS = ['What you need', 'Choose a hub', 'Pay with M-Pesa'];
 export default function Buy() {
     const { user } = useAuth();
     const [step, setStep] = useState(0);
-    const [request, setRequest] = useState(null);
+    // Coming from the Marketplace (?material=PET) pre-selects that material.
+    const [searchParams] = useSearchParams();
+    const [request, setRequest] = useState(() => {
+        const materialId = searchParams.get('material');
+        return materialId ? { materialId } : null;
+    });
     const [choice, setChoice] = useState(null);
     const [order, setOrder] = useState(null);
 

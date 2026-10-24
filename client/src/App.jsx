@@ -11,6 +11,9 @@ import Onboarding from './pages/Onboarding.jsx';
 import Sell, { SellHistory } from './pages/Sell.jsx';
 import Buy, { BuyOrders } from './pages/Buy.jsx';
 import Dashboard from './pages/Dashboard';
+import UserDashboard from './pages/UserDashboard.jsx';
+import Market from './pages/Market.jsx';
+import Profile from './pages/Profile.jsx';
 
 // Logged-in users skip the landing page and go to their own part of the app.
 function Landing() {
@@ -33,15 +36,17 @@ export default function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/onboarding" element={<Onboarding />} />
 
+          <Route path="/dashboard" element={only(['seller', 'buyer'], <UserDashboard />)} />
+          <Route path="/market" element={only(null, <Market />)} />
+          <Route path="/profile" element={only(null, <Profile />)} />
           <Route path="/sell" element={only(['seller'], <Sell />)} />
           <Route path="/sell/history" element={only(['seller'], <SellHistory />)} />
           <Route path="/buy" element={only(['buyer'], <Buy />)} />
           <Route path="/buy/orders" element={only(['buyer'], <BuyOrders />)} />
           <Route path="/hub" element={only(['hub_manager'], <Dashboard />)} />
 
-          {/* Old website addresses */}
-          <Route path="/dashboard" element={<Navigate to="/hub" replace />} />
-          <Route path="/marketplace" element={<Navigate to="/buy" replace />} />
+          {/* Old website address */}
+          <Route path="/marketplace" element={<Navigate to="/market" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Footer />

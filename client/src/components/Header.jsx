@@ -5,9 +5,9 @@ import { ROLE_HOME, ROLE_LABELS } from '../auth/session.js';
 
 // Each role only sees its own part of the app.
 const ROLE_NAV = {
-  seller: [['/sell', 'Sell scrap'], ['/sell/history', 'My drop-offs']],
-  buyer: [['/buy', 'Buy materials'], ['/buy/orders', 'My orders']],
-  hub_manager: [['/hub', 'My hub']],
+  seller: [['/dashboard', 'Dashboard'], ['/market', 'Marketplace'], ['/sell', 'Sell scrap'], ['/sell/history', 'My drop-offs']],
+  buyer: [['/dashboard', 'Dashboard'], ['/market', 'Marketplace'], ['/buy', 'Buy materials'], ['/buy/orders', 'My orders']],
+  hub_manager: [['/hub', 'My hub'], ['/market', 'Marketplace']],
 };
 
 const navClass = ({ isActive }) => (isActive ? 'active' : '');
@@ -41,11 +41,10 @@ export default function Header() {
                 </li>
               ))}
               <li>
-                <NavLink to="/onboarding" className={navClass}>Accessibility</NavLink>
-              </li>
-              <li className="nav-user">
-                <span>{user.name}</span>
-                <span className="nav-role">{ROLE_LABELS[user.role]}</span>
+                <NavLink to="/profile" className={({ isActive }) => `nav-user${isActive ? ' active' : ''}`} title="My profile">
+                  <span>{user.name}</span>
+                  <span className="nav-role">{ROLE_LABELS[user.role]} · Profile</span>
+                </NavLink>
               </li>
               <li>
                 <button type="button" className="nav-logout" onClick={handleLogout}>Log out</button>

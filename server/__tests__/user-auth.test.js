@@ -126,6 +126,52 @@ describe('POST /auth/login and GET /auth/me', () => {
   });
 });
 
+describe('PATCH /auth/me (profile)', () => {
+  it('changes the name and phone, and the new phone works for login', async () => {
+    const payload = newUser();
+    const { body } = await request(app).post('/auth/register').send(payload);
+    const auth = { Authorization: `Bearer ${body.token}` };
+    const newPhone = randomPhone();
+
+    const res = await request(app).patch('/auth/me').set(auth).send({ name: `${TEST_NAME_PREFIX}renamed`, phone: newPhone });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ name: `${TEST_NAME_PREFIX}renamed`, phone: newPhone });
+
+    const login = await request(app).post('/auth/login').send({ phone: newPhone, password: payload.password });
+    expect(login.status).toBe(200);
+  });
+
+  it('returns 409 for a phone that belongs to someone else, and 400 for nothing to change', async () => {
+    const other = newUser();
+    await request(app).post('/auth/register').send(other);
+    const { body } = await request(app).post('/auth/register').send(newUser());
+    const auth = { Authorization: `Bearer ${body.token}` };
+
+    expectError(await request(app).patch('/auth/me').set(auth).send({ phone: other.phone }), 409);
+    expectError(await request(app).patch('/auth/me').set(auth).send({}), 400);
+    expectError(await request(app).patch('/auth/me').set(auth).send({ name: '  ' }), 400);
+  });
+});
+
+describe('PUT /auth/me/password', () => {
+  it('needs the current password, then logs out every other session', async () => {
+    const payload = newUser();
+    const first = await request(app).post('/auth/register').send(payload);
+    const second = await request(app).post('/auth/login').send({ phone: payload.phone, password: payload.password });
+    const auth = { Authorization: `Bearer ${first.body.token}` };
+
+    expectError(await request(app).put('/auth/me/password').set(auth).send({ current_password: 'wrong-one', new_password: 'newsecret1' }), 400);
+    expectError(await request(app).put('/auth/me/password').set(auth).send({ current_password: payload.password, new_password: '123' }), 400);
+
+    const ok = await request(app).put('/auth/me/password').set(auth).send({ current_password: payload.password, new_password: 'newsecret1' });
+    expect(ok.status).toBe(204);
+
+    expect((await request(app).get('/auth/me').set(auth)).status).toBe(200);
+    expect((await request(app).get('/auth/me').set('Authorization', `Bearer ${second.body.token}`)).status).toBe(401);
+    expect((await request(app).post('/auth/login').send({ phone: payload.phone, password: 'newsecret1' })).status).toBe(200);
+  });
+});
+
 describe('PUT /auth/me/accessibility', () => {
   it('saves the onboarding answer, removing duplicates', async () => {
     const { body } = await request(app).post('/auth/register').send(newUser());

@@ -2,6 +2,7 @@
 //
 //   GET  /recommendations/hubs?material_id=&quantity_kg=&mode=sell|buy[&lat=&lng=]  any user
 //   GET  /hubs/:id/nearby-venues (AccessMap venues to report on)                   any user
+//   GET  /market (prices and stock per hub for every material)                     any user
 //   POST /sell/drop-offs, GET /sell/drop-offs                                      seller
 //   GET  /hub/drop-offs?status=, POST /hub/drop-offs/:drop_off_id/receive          hub manager (own hub)
 //   GET  /hub/orders?status=, POST /hub/orders/:id/collect, GET /hub/summary       hub manager (own hub)
@@ -189,6 +190,37 @@ function createMarketplace({ pool, requireUser, callPartner }) {
         accessibility_note: accessibilityNote,
         hubs: ranked,
       });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // The marketplace: every material with today's price and how much each active hub has.
+  router.get('/market', requireUser(), async (req, res) => {
+    try {
+      const [materials] = await pool.query('SELECT id, name, type, price, change_pct, trend FROM materials ORDER BY name');
+      const [stock] = await pool.query(
+        `SELECT hm.material_name, h.id, h.name, hm.quantity
+         FROM hotspot_materials hm JOIN hotspots h ON h.id = hm.hotspot_id
+         WHERE h.active = 1 AND hm.quantity > 0
+         ORDER BY hm.quantity DESC`
+      );
+
+      res.json(materials.map((m) => {
+        const hubs = stock
+          .filter((s) => s.material_name === m.name)
+          .map((s) => ({ hotspot_id: s.id, name: s.name, stock_kg: Number(s.quantity) }));
+        return {
+          id: m.id,
+          name: m.name,
+          type: m.type,
+          price_per_kg: Number(m.price),
+          change_pct: Number(m.change_pct),
+          trend: m.trend,
+          stock_kg: hubs.reduce((sum, h) => sum + h.stock_kg, 0),
+          hubs,
+        };
+      }));
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
