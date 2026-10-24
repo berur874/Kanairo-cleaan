@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { createAuth } = require('./auth');
-const { createMarketplace } = require('./marketplace');
+const { createMarketplace, buildSummary, generateReceipt } = require('./marketplace');
 const { ACCESSIBILITY_FEATURES } = require('./accessibility');
 
 const app = express();
@@ -359,13 +359,6 @@ app.post('/inventory/deduct', async (req, res) => {
   }
 });
 
-function generateReceipt() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = 'KAN';
-  for (let i = 0; i < 7; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
-  return result;
-}
-
 app.get('/transactions', async (req, res) => {
   const limit = Number(req.query.limit) || 50;
   try {
@@ -409,36 +402,7 @@ app.post('/transactions', async (req, res) => {
 
 app.get('/dashboard/summary', async (req, res) => {
   try {
-    const [[totals]] = await pool.query(
-      'SELECT COUNT(*) AS count, COALESCE(SUM(amount),0) AS revenue, COALESCE(SUM(quantity),0) AS weight FROM transactions'
-    );
-    const [dailyRows] = await pool.query(
-      `SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS day, SUM(amount) AS revenue, SUM(quantity) AS weight
-       FROM transactions
-       WHERE created_at >= (CURDATE() - INTERVAL 6 DAY)
-       GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')`
-    );
-
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const weekly = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const iso = d.toISOString().slice(0, 10);
-      const match = dailyRows.find((r) => r.day === iso);
-      weekly.push({
-        day: dayNames[d.getDay()],
-        revenue: match ? Number(match.revenue) : 0,
-        weight: match ? Number(match.weight) : 0,
-      });
-    }
-
-    res.json({
-      transactionCount: totals.count,
-      revenueTotal: Number(totals.revenue),
-      weightTotal: Number(totals.weight),
-      weekly,
-    });
+    res.json(await buildSummary(pool));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
