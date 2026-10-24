@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { createAuth } = require('./auth');
+const { createMarketplace } = require('./marketplace');
 const { ACCESSIBILITY_FEATURES } = require('./accessibility');
 
 const app = express();
@@ -602,6 +603,10 @@ app.post('/partner/reports', async (req, res) => {
   }
 });
 
+// Webapp buying and selling between sellers, hubs and buyers. See marketplace.js.
+const { router: marketplaceRouter, venueCache } = createMarketplace({ pool, requireUser, callPartner });
+app.use(marketplaceRouter);
+
 app.use((req, res) => {
   res.status(404).json({ code: 404, message: `Route ${req.method} ${req.path} not found` });
 });
@@ -613,4 +618,4 @@ app.use((err, req, res, next) => {
   res.status(status).json({ code: status, message });
 });
 
-module.exports = { app, pool, ensureScrapLogsSchema };
+module.exports = { app, pool, ensureScrapLogsSchema, venueCache };
