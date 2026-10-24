@@ -5,6 +5,8 @@ const mysql = require('mysql2');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { createAuth } = require('./auth');
+const { ACCESSIBILITY_FEATURES } = require('./accessibility');
 
 const app = express();
 
@@ -34,7 +36,9 @@ if (process.env.NODE_ENV !== 'test') {
       // On failures, keep what was sent and what we answered so the cause can be logged.
       if (res.statusCode >= 400) {
         entry.error = responseBody;
-        if (req.body && Object.keys(req.body).length) entry.requestBody = req.body;
+        if (req.body && Object.keys(req.body).length) {
+          entry.requestBody = 'password' in req.body ? { ...req.body, password: '[redacted]' } : req.body;
+        }
       }
       console.log(`${entry.time.slice(11, 19)} ${entry.via} ${entry.method} ${entry.path} -> ${entry.status}`);
       fs.appendFile(REQUEST_LOG, JSON.stringify(entry) + '\n', () => {});
@@ -58,6 +62,10 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10
 }).promise();
+
+// Webapp accounts (sellers, buyers, hub managers). See auth.js for the contract.
+const { router: authRouter, requireUser } = createAuth({ pool });
+app.use('/auth', authRouter);
 
 async function ensureScrapLogsSchema() {
   const additions = [
@@ -439,11 +447,6 @@ app.get('/dashboard/summary', async (req, res) => {
 // Field names follow Group 12's openapi.yaml Venue and Report schemas exactly.
 // Venue.category enum from Group 12's contract.
 const PARTNER_CATEGORIES = ['market', 'hospital', 'school', 'transport', 'office', 'bank', 'other'];
-// The 8 booleans in Group 12's Accessibility object.
-const ACCESSIBILITY_FEATURES = [
-  'ramp', 'lift', 'accessibleToilet', 'accessibleParking',
-  'tactilePaving', 'wideCorridors', 'audioAssistance', 'staffAssistance',
-];
 // Slugs are lowercase words joined by hyphens; anything else never reaches Group 12.
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 

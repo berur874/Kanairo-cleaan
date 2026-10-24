@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS hotspots (
   activity int DEFAULT '0',
   stock_kg int DEFAULT '0',
   active tinyint(1) DEFAULT '1',
+  lat decimal(9,6) DEFAULT NULL,
+  lng decimal(9,6) DEFAULT NULL,
   PRIMARY KEY (id),
   KEY primary_material_id (primary_material_id),
   CONSTRAINT hotspots_ibfk_1 FOREIGN KEY (primary_material_id) REFERENCES materials (id)
@@ -41,13 +43,48 @@ CREATE TABLE IF NOT EXISTS hotspot_materials (
   CONSTRAINT hotspot_materials_ibfk_1 FOREIGN KEY (hotspot_id) REFERENCES hotspots (id)
 ) ENGINE=InnoDB;
 
+-- Webapp accounts. accessibility_needs is NULL until the onboarding question is answered,
+-- then a JSON array of AccessMap feature names ([] = no needs).
+CREATE TABLE IF NOT EXISTS users (
+  id int NOT NULL AUTO_INCREMENT,
+  name varchar(100) NOT NULL,
+  phone varchar(20) NOT NULL,
+  password_hash varchar(255) NOT NULL,
+  role enum('seller','buyer','hub_manager') NOT NULL,
+  hotspot_id int DEFAULT NULL,
+  accessibility_needs json DEFAULT NULL,
+  created_at datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_user_phone (phone),
+  KEY hotspot_id (hotspot_id),
+  CONSTRAINT users_ibfk_1 FOREIGN KEY (hotspot_id) REFERENCES hotspots (id)
+) ENGINE=InnoDB;
+
+-- Only a SHA-256 of each session token is stored.
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash char(64) NOT NULL,
+  user_id int NOT NULL,
+  expires_at datetime NOT NULL,
+  PRIMARY KEY (token_hash),
+  KEY user_id (user_id),
+  CONSTRAINT sessions_ibfk_1 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Buyer orders. buyer_id/hotspot_id are NULL for rows from before the webapp.
 CREATE TABLE IF NOT EXISTS transactions (
   id varchar(20) NOT NULL,
   material varchar(100) NOT NULL,
   quantity decimal(10,2) NOT NULL,
   amount decimal(10,2) NOT NULL,
   created_at datetime DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id)
+  buyer_id int DEFAULT NULL,
+  hotspot_id int DEFAULT NULL,
+  material_id varchar(20) DEFAULT NULL,
+  status enum('paid','collected') NOT NULL DEFAULT 'paid',
+  collected_at datetime DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY buyer_id (buyer_id),
+  KEY hotspot_id (hotspot_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS scrap_logs (
@@ -80,8 +117,15 @@ CREATE TABLE IF NOT EXISTS drop_offs (
   notes text,
   status enum('pending','received') NOT NULL DEFAULT 'pending',
   created_at datetime DEFAULT CURRENT_TIMESTAMP,
+  -- Webapp sellers (NULL for drop-offs made by Group 1 through the partner API)
+  seller_id int DEFAULT NULL,
+  material_id varchar(20) DEFAULT NULL,
+  received_kg decimal(10,2) DEFAULT NULL,
+  payout_kes decimal(10,2) DEFAULT NULL,
+  received_at datetime DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uniq_drop_off_id (drop_off_id),
   KEY hotspot_id (hotspot_id),
+  KEY seller_id (seller_id),
   CONSTRAINT drop_offs_ibfk_1 FOREIGN KEY (hotspot_id) REFERENCES hotspots (id)
 ) ENGINE=InnoDB;
