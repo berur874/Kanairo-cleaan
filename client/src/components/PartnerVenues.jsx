@@ -36,7 +36,8 @@ function FeatureChecks({ idPrefix, value, onChange }) {
     );
 }
 
-function ReportForm({ venue, onSubmitted }) {
+// Also used by sellers and buyers to report on places near a hub they visited (VisitReport.jsx).
+export function ReportForm({ venue, onSubmitted }) {
     const today = new Date().toISOString().slice(0, 10);
     const [rating, setRating] = useState('5');
     const [visitedAt, setVisitedAt] = useState(today);

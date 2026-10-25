@@ -116,11 +116,75 @@ async function ensureHotspotCounty() {
   }
 }
 
+// Webapp columns on tables that already existed before the webapp (CREATE TABLE IF NOT EXISTS
+// skips them), plus coordinates for the original hubs so recommendations can measure distance.
+const WEBAPP_COLUMNS = {
+  hotspots: { lat: 'decimal(9,6) DEFAULT NULL', lng: 'decimal(9,6) DEFAULT NULL' },
+  drop_offs: {
+    seller_id: 'int DEFAULT NULL',
+    material_id: 'varchar(20) DEFAULT NULL',
+    received_kg: 'decimal(10,2) DEFAULT NULL',
+    payout_kes: 'decimal(10,2) DEFAULT NULL',
+    received_at: 'datetime DEFAULT NULL',
+  },
+  transactions: {
+    buyer_id: 'int DEFAULT NULL',
+    hotspot_id: 'int DEFAULT NULL',
+    material_id: 'varchar(20) DEFAULT NULL',
+    status: "enum('paid','collected') NOT NULL DEFAULT 'paid'",
+    collected_at: 'datetime DEFAULT NULL',
+  },
+};
+
+const HUB_COORDINATES = {
+  Dandora: [-1.2496, 36.899],
+  Gikomba: [-1.286, 36.837],
+  'Industrial Area': [-1.307, 36.851],
+  Kibera: [-1.3133, 36.7869],
+  Westlands: [-1.2676, 36.8108],
+  Eastleigh: [-1.2741, 36.85],
+  Karen: [-1.3197, 36.7073],
+  Ruiru: [-1.1466, 36.9609],
+};
+
+async function ensureWebappColumns() {
+  const connection = await mysql.createConnection({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    port: Number(process.env.DB_PORT) || 3306,
+    ssl: process.env.DB_SSL === 'true' ? { minVersion: 'TLSv1.2' } : undefined,
+    database: process.env.DB_NAME,
+  });
+
+  try {
+    for (const [table, columns] of Object.entries(WEBAPP_COLUMNS)) {
+      for (const [columnName, sqlType] of Object.entries(columns)) {
+        const [rows] = await connection.query(
+          `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+          [process.env.DB_NAME, table, columnName]
+        );
+        if (rows.length === 0) {
+          await connection.query(`ALTER TABLE ${table} ADD COLUMN ${columnName} ${sqlType}`);
+          console.log(`Added ${table}.${columnName}`);
+        }
+      }
+    }
+
+    for (const [name, [lat, lng]] of Object.entries(HUB_COORDINATES)) {
+      await connection.query('UPDATE hotspots SET lat = ?, lng = ? WHERE name = ? AND lat IS NULL', [lat, lng, name]);
+    }
+  } finally {
+    await connection.end();
+  }
+}
+
 const target = process.argv[2];
 if (target === 'schema') {
   run('schema.sql', { withDatabase: false })
     .then(() => ensureScrapLogsColumns())
     .then(() => ensureHotspotCounty())
+    .then(() => ensureWebappColumns())
     .catch((err) => { console.error(err); process.exit(1); });
 } else if (target === 'seed') {
   run('seed.sql').catch((err) => { console.error(err); process.exit(1); });

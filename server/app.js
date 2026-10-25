@@ -5,6 +5,9 @@ const mysql = require('mysql2');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { createAuth } = require('./auth');
+const { createMarketplace } = require('./marketplace');
+const { ACCESSIBILITY_FEATURES } = require('./accessibility');
 
 const app = express();
 
@@ -34,7 +37,11 @@ if (process.env.NODE_ENV !== 'test') {
       // On failures, keep what was sent and what we answered so the cause can be logged.
       if (res.statusCode >= 400) {
         entry.error = responseBody;
-        if (req.body && Object.keys(req.body).length) entry.requestBody = req.body;
+        if (req.body && Object.keys(req.body).length) {
+          entry.requestBody = Object.fromEntries(Object.entries(req.body).map(
+            ([key, value]) => [key, /password/i.test(key) ? '[redacted]' : value]
+          ));
+        }
       }
       console.log(`${entry.time.slice(11, 19)} ${entry.via} ${entry.method} ${entry.path} -> ${entry.status}`);
       fs.appendFile(REQUEST_LOG, JSON.stringify(entry) + '\n', () => {});
@@ -58,6 +65,10 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10
 }).promise();
+
+// Webapp accounts (sellers, buyers, hub managers). See auth.js for the contract.
+const { router: authRouter, requireUser } = createAuth({ pool });
+app.use('/auth', authRouter);
 
 async function ensureScrapLogsSchema() {
   const additions = [
@@ -166,7 +177,7 @@ app.get('/materials/market', async (req, res) => {
 app.get('/collection-locations/showcase', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT h.id, h.name, h.area, m.name AS material, h.activity, h.stock_kg AS stock, h.active
+      `SELECT h.id, h.name, h.area, m.name AS material, h.activity, h.stock_kg AS stock, h.active, h.lat, h.lng
        FROM hotspots h
        LEFT JOIN materials m ON h.primary_material_id = m.id`
     );
@@ -301,149 +312,14 @@ app.get('/hotspots', async (req, res) => {
   }
 });
 
-app.post('/hotspots/inventory', async (req, res) => {
-  const { hotspotName, materialName, quantity } = req.body;
-  if (!hotspotName || !materialName || !quantity) {
-    return res.status(400).json({ error: 'hotspotName, materialName and quantity are required' });
-  }
-  try {
-    const [existing] = await pool.query('SELECT id FROM hotspots WHERE name = ?', [hotspotName]);
-    let hotspotId = existing.length ? existing[0].id : null;
-    if (!hotspotId) {
-      const [result] = await pool.query('INSERT INTO hotspots (name) VALUES (?)', [hotspotName]);
-      hotspotId = result.insertId;
-    }
-
-    await pool.query(
-      `INSERT INTO hotspot_materials (hotspot_id, material_name, quantity)
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)`,
-      [hotspotId, materialName, quantity]
-    );
-
-    res.status(201).json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/inventory/deduct', async (req, res) => {
-  const { materialName, quantity } = req.body;
-  if (!materialName || !quantity) {
-    return res.status(400).json({ error: 'materialName and quantity are required' });
-  }
-  try {
-    const [rows] = await pool.query(
-      'SELECT id, quantity FROM hotspot_materials WHERE material_name = ? AND quantity > 0',
-      [materialName]
-    );
-    let remaining = quantity;
-    for (const row of rows) {
-      if (remaining <= 0) break;
-      const take = Math.min(Number(row.quantity), remaining);
-      await pool.query('UPDATE hotspot_materials SET quantity = quantity - ? WHERE id = ?', [take, row.id]);
-      remaining -= take;
-    }
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-function generateReceipt() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = 'KAN';
-  for (let i = 0; i < 7; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
-  return result;
-}
-
-app.get('/transactions', async (req, res) => {
-  const limit = Number(req.query.limit) || 50;
-  try {
-    const [rows] = await pool.query('SELECT * FROM transactions ORDER BY created_at DESC LIMIT ?', [limit]);
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/transactions', async (req, res) => {
-  const { material, quantity, amount } = req.body;
-  if (!material || !quantity || !amount) {
-    return res.status(400).json({ error: 'material, quantity and amount are required' });
-  }
-  const id = generateReceipt();
-  try {
-    await pool.query(
-      'INSERT INTO transactions (id, material, quantity, amount) VALUES (?, ?, ?, ?)',
-      [id, material, quantity, amount]
-    );
-
-    const [rows] = await pool.query(
-      'SELECT id, quantity FROM hotspot_materials WHERE material_name = ? AND quantity > 0',
-      [material]
-    );
-    let remaining = quantity;
-    for (const row of rows) {
-      if (remaining <= 0) break;
-      const take = Math.min(Number(row.quantity), remaining);
-      await pool.query('UPDATE hotspot_materials SET quantity = quantity - ? WHERE id = ?', [take, row.id]);
-      remaining -= take;
-    }
-
-    const [[saved]] = await pool.query('SELECT * FROM transactions WHERE id = ?', [id]);
-    res.status(201).json(saved);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/dashboard/summary', async (req, res) => {
-  try {
-    const [[totals]] = await pool.query(
-      'SELECT COUNT(*) AS count, COALESCE(SUM(amount),0) AS revenue, COALESCE(SUM(quantity),0) AS weight FROM transactions'
-    );
-    const [dailyRows] = await pool.query(
-      `SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS day, SUM(amount) AS revenue, SUM(quantity) AS weight
-       FROM transactions
-       WHERE created_at >= (CURDATE() - INTERVAL 6 DAY)
-       GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')`
-    );
-
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const weekly = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const iso = d.toISOString().slice(0, 10);
-      const match = dailyRows.find((r) => r.day === iso);
-      weekly.push({
-        day: dayNames[d.getDay()],
-        revenue: match ? Number(match.revenue) : 0,
-        weight: match ? Number(match.weight) : 0,
-      });
-    }
-
-    res.json({
-      transactionCount: totals.count,
-      revenueTotal: Number(totals.revenue),
-      weightTotal: Number(totals.weight),
-      weekly,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// The old website's open write routes (POST /transactions, /hotspots/inventory, /inventory/deduct)
+// let anyone change stock or record sales. Those changes now go through the logged-in seller,
+// hub and buyer routes in marketplace.js.
 
 // Week 10: upstream partner (Group 12, AccessMap Nairobi). Called from the server so their key never reaches the browser.
 // Field names follow Group 12's openapi.yaml Venue and Report schemas exactly.
 // Venue.category enum from Group 12's contract.
 const PARTNER_CATEGORIES = ['market', 'hospital', 'school', 'transport', 'office', 'bank', 'other'];
-// The 8 booleans in Group 12's Accessibility object.
-const ACCESSIBILITY_FEATURES = [
-  'ramp', 'lift', 'accessibleToilet', 'accessibleParking',
-  'tactilePaving', 'wideCorridors', 'audioAssistance', 'staffAssistance',
-];
 // Slugs are lowercase words joined by hyphens; anything else never reaches Group 12.
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -599,6 +475,10 @@ app.post('/partner/reports', async (req, res) => {
   }
 });
 
+// Webapp buying and selling between sellers, hubs and buyers. See marketplace.js.
+const { router: marketplaceRouter, venueCache } = createMarketplace({ pool, requireUser, callPartner });
+app.use(marketplaceRouter);
+
 app.use((req, res) => {
   res.status(404).json({ code: 404, message: `Route ${req.method} ${req.path} not found` });
 });
@@ -610,4 +490,4 @@ app.use((err, req, res, next) => {
   res.status(status).json({ code: status, message });
 });
 
-module.exports = { app, pool, ensureScrapLogsSchema };
+module.exports = { app, pool, ensureScrapLogsSchema, venueCache };
