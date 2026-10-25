@@ -270,3 +270,211 @@ cd client
 npm ci
 npm run dev
 ```
+# Kanairo-Klean: Database Deployment Guide (Railway MySQL)
+
+This guide explains how to deploy the Kanairo-Klean MySQL database on Railway, load the schema and starter data, and connect the API to it.
+
+The database runs on Railway. You connect to it from your own computer through a temporary tunnel only to set it up. After that, the API reaches it over Railway's private network.
+
+## Contents
+
+1. [Prerequisites](#prerequisites)
+2. [Create the project and database](#step-1-create-the-project-and-database)
+3. [Patch the code for custom ports](#step-2-patch-the-code-for-custom-ports)
+4. [Connect from your computer](#step-3-connect-from-your-computer)
+5. [Create `server/.env`](#step-4-create-serverenv)
+6. [Create the tables and load starter data](#step-5-create-the-tables-and-load-starter-data)
+7. [Verify the database](#step-6-verify-the-database)
+8. [Connect the API to the database](#step-7-connect-the-api-to-the-database)
+9. [Clean up](#step-8-clean-up)
+10. [Maintenance](#maintenance)
+11. [Troubleshooting](#troubleshooting)
+
+## Prerequisites
+
+- Node.js installed, the repository cloned, and dependencies installed:
+  ```sh
+  cd Kanairo-cleaan/server
+  npm ci
+  ```
+- A Railway account that is allowed to deploy (an active trial or the Hobby plan).
+- The Railway CLI:
+  ```sh
+  npm i -g @railway/cli
+  railway login
+  ```
+
+## Step 1: Create the project and database
+
+1. In Railway, click **New Project → Empty Project**.
+2. On the project canvas, click **Create → Database → Add MySQL**.
+3. Keep the service name `MySQL`. The variable references in Step 7 depend on this name.
+4. Wait until the service shows as active.
+
+> **Important:** the database and the API must live in the **same Railway project and environment**. Private hostnames such as `mysql.railway.internal` only resolve between services in the same project. If the API is in a different project, it crashes with `getaddrinfo ENOTFOUND mysql.railway.internal`.
+
+## Step 2: Patch the code for custom ports
+
+The original code ignores `DB_PORT` and has no SSL option. Railway's tunnel uses a non-standard port, so add both. From the `server` folder:
+
+```sh
+sed -i "s|^\( *\)password: process.env.DB_PASSWORD,|&\n\1port: Number(process.env.DB_PORT) \|\| 3306,\n\1ssl: process.env.DB_SSL === 'true' ? { minVersion: 'TLSv1.2' } : undefined,|" app.js db/migrate.js
+```
+
+Check that it applied:
+
+```sh
+grep -n "DB_PORT" app.js db/migrate.js
+```
+
+You should see four matches (one in `app.js`, three in `db/migrate.js`). Local MySQL keeps working, because the new settings only take effect when `DB_PORT` and `DB_SSL` are set.
+
+Commit and push the change:
+
+```sh
+git add server/app.js server/db/migrate.js
+git commit -m "Support DB port and SSL"
+git push
+```
+
+## Step 3: Connect from your computer
+
+The database's private address only works inside Railway, so your computer needs a tunnel. The tunnel requires an SSH key.
+
+```sh
+ssh-keygen -t ed25519        # press Enter at each prompt; do this once
+railway login
+railway link                 # choose your project
+railway connect MySQL --tunnel-only
+```
+
+It prints connection details, for example:
+
+```
+Host: 127.0.0.1
+Port: 34573
+User: root
+```
+
+**Keep this terminal open.** Closing it closes the tunnel. The port can change each time you restart it.
+
+### Alternative without SSH
+
+1. On the MySQL service, open **Settings → Networking** and click **Add Public Access**.
+2. In the service's **Variables** tab, read `RAILWAY_TCP_PROXY_DOMAIN` and `RAILWAY_TCP_PROXY_PORT` (use the eye icon to reveal values).
+3. Use those as `DB_HOST` and `DB_PORT` in the next step.
+4. Remove public access when you are done. Anyone with the connection string can connect to a publicly exposed database.
+
+## Step 4: Create `server/.env`
+
+Open a **second terminal**. Get the password from the MySQL service's **Variables** tab (`MYSQLPASSWORD`), then create `server/.env`:
+
+```
+DB_HOST=127.0.0.1
+DB_PORT=34573
+DB_USER=root
+DB_PASSWORD=<MYSQLPASSWORD>
+DB_NAME=kanairo
+API_TOKEN=anything-for-now
+```
+
+Use the host and port your tunnel printed. **Never commit this file.** The repository's `.gitignore` already excludes it.
+
+## Step 5: Create the tables and load starter data
+
+From the `server` folder, with the tunnel still open:
+
+```sh
+npm run db:schema
+npm run db:seed
+```
+
+They should finish with `Ran schema.sql` and `Ran seed.sql`.
+
+> **Warning:** `npm run db:seed` deletes and replaces all table data. Run it only once, on a new empty database. Never run it again after real data exists.
+
+## Step 6: Verify the database
+
+Still in the `server` folder, with the tunnel open:
+
+```sh
+node -e "require('dotenv').config(); const m=require('mysql2/promise'); (async()=>{const c=await m.createConnection({host:process.env.DB_HOST,port:Number(process.env.DB_PORT),user:process.env.DB_USER,password:process.env.DB_PASSWORD,database:'kanairo'}); const [t]=await c.query('SHOW TABLES'); console.log(t); const [r]=await c.query('SELECT COUNT(*) AS n FROM materials'); console.log(r); await c.end();})()"
+```
+
+Expected result: six tables and a non-zero count for `materials`.
+
+| Table |
+|---|
+| `drop_offs` |
+| `hotspot_materials` |
+| `hotspots` |
+| `materials` |
+| `scrap_logs` |
+| `transactions` |
+
+> **Note:** Railway's **Data** tab shows only the default database named `railway`. Your tables are in a separate database named `kanairo`, so you will not see them there. This is expected.
+
+## Step 7: Connect the API to the database
+
+1. In the **same project** as the database, click **Create → GitHub Repo** and select the repository.
+2. In the new service's **Settings**, set **Root Directory** to `server`.
+3. Open **Variables → Raw Editor** and add:
+   ```
+   API_TOKEN=<a long random string>
+   DB_HOST=${{MySQL.MYSQLHOST}}
+   DB_PORT=${{MySQL.MYSQLPORT}}
+   DB_USER=${{MySQL.MYSQLUSER}}
+   DB_PASSWORD=${{MySQL.MYSQLPASSWORD}}
+   DB_NAME=kanairo
+   ```
+   Generate the token with `openssl rand -hex 32` and keep a copy.
+4. Do **not** set `PORT` (Railway provides it) or `DB_SSL`. Leave out `PARTNER_URL` and `PARTNER_API_KEY` unless you use the partner venues route.
+5. If Railway shows an **Apply changes** or **Deploy** banner, click it.
+6. Open **Settings → Networking → Generate Domain**.
+7. Check the deployment logs for `Server is running on port ...`.
+8. Test the API:
+   ```sh
+   curl -i https://YOUR-DOMAIN/materials/market
+   curl -i -H "Authorization: Bearer YOUR_API_TOKEN" https://YOUR-DOMAIN/materials
+   ```
+   The first needs no token and returns JSON. The second returns `200` with the right token and `401` with a wrong one.
+
+The API reaches the database over Railway's private network, so the tunnel is no longer needed.
+
+## Step 8: Clean up
+
+- Stop the tunnel with `Ctrl+C`.
+- Remove **Public Access** from the MySQL service if you enabled it.
+- Delete `DB_PASSWORD` from your local `server/.env`, or make sure the file is never committed.
+- Delete any leftover empty or crashed Railway projects so they do not use your trial credit.
+
+## Maintenance
+
+- **Backups:** reopen the tunnel, then run:
+  ```sh
+  mysqldump -h 127.0.0.1 -P <tunnel-port> -u root -p kanairo > backup.sql
+  ```
+  Also check Railway's backup options for your plan.
+- **Schema changes:** per the project README, `npm run db:schema` adds new columns and tables without deleting data. Take a backup first.
+- **Never re-run `db:seed`** once real data exists.
+- **Changing the tunnel:** if you restart it, update `DB_PORT` in `server/.env` to the new port.
+
+## Troubleshooting
+
+| Error | Cause and fix |
+|---|---|
+| `ENOTFOUND mysql.railway.internal` on your computer | You used the private host locally. Use the tunnel (`127.0.0.1`) or the public proxy instead. |
+| `ENOTFOUND mysql.railway.internal` in the API logs | The API is in a different Railway project from the database. Add it to the database's project. |
+| `No SSH keys found` | Run `ssh-keygen -t ed25519`, then retry the tunnel. |
+| `Cannot find module 'dotenv'` | Run the command from the `server` folder, where dependencies are installed. |
+| `ECONNREFUSED` on your computer | The tunnel is not running, or `DB_PORT` is out of date. |
+| Blank `Failed to initialize scrap_logs schema:` in the logs | In `server/index.js`, change `err.message` to `err` in the `console.error` call to see the real error. |
+| Variables show `${{...}}` literally or the host is `localhost` | The variables were added to the wrong service, or the database service is not named `MySQL`. |
+| Tables not visible in Railway's Data tab | Expected. The Data tab shows the `railway` database, and your tables are in `kanairo`. |
+
+## Security notes
+
+- Keep `.env` out of version control.
+- Use a strong, random `API_TOKEN` and share it privately.
+- Do not leave Public Access enabled on the database.
+- Several API routes (`/inventory/deduct`, `/hotspots/inventory`, `/transactions`) do not require a token, so anyone who has the API URL can call them. This is acceptable for a demo but should be fixed before real use.
