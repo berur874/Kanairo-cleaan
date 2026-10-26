@@ -53,6 +53,33 @@ if (process.env.NODE_ENV !== 'test') {
 app.use(cors());
 app.use(express.json());
 
+function rateLimit({ windowMs, max }) {
+  const hits = new Map(); 
+  return (req, res, next) => {
+    const authHeader = req.get('Authorization') || '';
+    const id = authHeader.startsWith('Bearer ') ? authHeader : req.ip;
+    const now = Date.now();
+
+    let entry = hits.get(id);
+    if (!entry || now >= entry.resetAt) {
+      entry = { count: 0, resetAt: now + windowMs };
+      hits.set(id, entry);
+    }
+
+    entry.count += 1;
+    if (entry.count > max) {
+      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+      res.set('Retry-After', String(retryAfter));
+      return res.status(429).json({ message: 'Too many requests', retryAfter });
+    }
+
+    next();
+  };
+}
+
+// Global rate limiter: 100 requests per minute
+app.use(rateLimit({ windowMs: 60000, max: 100 }));
+
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
