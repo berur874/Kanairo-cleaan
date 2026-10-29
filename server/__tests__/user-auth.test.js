@@ -64,10 +64,18 @@ describe('POST /auth/register', () => {
     expect(res.body.user.phone).toBe(local);
   });
 
-  it('requires an active hub for hub managers', async () => {
-    expectError(await request(app).post('/auth/register').send(newUser({ role: 'hub_manager' })), 400);
+  it('requires the invite code for hub managers (403 without it or with a wrong one)', async () => {
+    expectError(await request(app).post('/auth/register').send(newUser({ role: 'hub_manager', hotspot_id: activeHubId })), 403);
+    expectError(await request(app).post('/auth/register').send(
+      newUser({ role: 'hub_manager', hotspot_id: activeHubId, invite_code: 'guess' })
+    ), 403);
+  });
 
-    const res = await request(app).post('/auth/register').send(newUser({ role: 'hub_manager', hotspot_id: activeHubId }));
+  it('requires an active hub for hub managers', async () => {
+    const invite_code = process.env.HUB_INVITE_CODE;
+    expectError(await request(app).post('/auth/register').send(newUser({ role: 'hub_manager', invite_code })), 400);
+
+    const res = await request(app).post('/auth/register').send(newUser({ role: 'hub_manager', hotspot_id: activeHubId, invite_code }));
     expect(res.status).toBe(201);
     expect(res.body.user.hotspot_id).toBe(activeHubId);
   });
@@ -139,6 +147,16 @@ describe('PATCH /auth/me (profile)', () => {
 
     const login = await request(app).post('/auth/login').send({ phone: newPhone, password: payload.password });
     expect(login.status).toBe(200);
+  });
+
+  it('ignores extra fields such as role or hotspot_id (no promoting yourself to hub manager)', async () => {
+    const { body } = await request(app).post('/auth/register').send(newUser());
+    const auth = { Authorization: `Bearer ${body.token}` };
+    const res = await request(app).patch('/auth/me').set(auth)
+      .send({ name: `${TEST_NAME_PREFIX}sneaky`, role: 'hub_manager', hotspot_id: activeHubId, id: 1 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: body.user.id, role: 'seller', hotspot_id: null });
   });
 
   it('returns 409 for a phone that belongs to someone else, and 400 for nothing to change', async () => {

@@ -4,25 +4,44 @@ Kanairo-Klean connects informal waste collectors, local aggregation yards, and r
 
 ## Access and authentication
 
-Every endpoint requires an API token sent as a Bearer token:
+Every endpoint requires an API key. Each consumer gets its own key, so we can tell callers apart and revoke one without affecting the others. Send it in either of these headers:
 
 ```http
-Authorization: Bearer <your-api-token>
+Authorization: Bearer <your-api-key>
 ```
 
-- **Calling our hosted API:** ask the Kanairo-Klean team for a token. Tokens are shared privately and are never committed to this repo.
-- **Running the API yourself:** you choose the token. It is the `API_TOKEN` value in `server/.env` (see Quickstart).
+```http
+X-API-Key: <your-api-key>
+```
 
-Requests without a valid token get `401 Unauthorized` (see [Error responses](#error-responses)). The local base URL is `http://localhost:5050`.
+- **Calling our hosted API:** ask the Kanairo-Klean team for a key. Keys are sent privately to one person and are never committed to this repo.
+- **Running the API yourself:** you choose the keys. They are the `API_KEYS` value in `server/.env`, one `name:key` pair per consumer (see Quickstart).
 
-The examples below use `$TOKEN` as a placeholder. Set it once per terminal before copying them:
+A request with no key, a wrong key or a revoked key gets `401 Unauthorized` and is never processed. The local base URL is `http://localhost:5050`.
+
+### Rate limits
+
+| Limit | Applies to |
+| --- | --- |
+| 100 requests per minute | each API key |
+| 300 requests per minute | each IP address, for every request (with or without a key) |
+
+Over a limit you get `429 Too Many Requests`, with a `Retry-After` header giving the seconds to wait, and this body:
+
+```json
+{"code":429,"message":"Too many requests","retryAfter":42}
+```
+
+Every response from the partner API also has `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers, so you can slow down before hitting the limit.
+
+The examples below use `$TOKEN` as a placeholder for your key. Set it once per terminal before copying them:
 
 ```sh
-TOKEN=your-api-token            # macOS/Linux
+TOKEN=your-api-key              # macOS/Linux
 ```
 
 ```powershell
-$TOKEN = 'your-api-token'       # Windows PowerShell
+$TOKEN = 'your-api-key'         # Windows PowerShell
 ```
 
 ## Quickstart
@@ -44,7 +63,8 @@ Copy-Item .env.example .env
 On macOS/Linux, use `cp .env.example .env` instead. Edit `.env` in the `server` directory:
 
 - Set `DB_PASSWORD` to the password for your local MySQL account. The template uses `root`; change `DB_USER` too if your MySQL account has another name.
-- Set `API_TOKEN` to any long random string. This is the token callers must send. The API will not start without it.
+- Set `API_KEYS` to one `name:key` pair per consumer, separated by commas, for example `API_KEYS=group1:<key>,team13:<key>`. Generate each key with `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`. The API will not start without at least one key.
+- Set `HUB_INVITE_CODE` if you want hub managers to be able to sign up in the webapp (see below).
 
 Never commit your `.env` file.
 
@@ -56,7 +76,7 @@ npm run db:seed
 npm start
 ```
 
-Keep that terminal open. In a second terminal, set `TOKEN` to the same value as `API_TOKEN` (see [Access and authentication](#access-and-authentication)), then run the quickstart request (Windows PowerShell users can use `curl.exe`):
+Keep that terminal open. In a second terminal, set `TOKEN` to one of the keys in `API_KEYS` (see [Access and authentication](#access-and-authentication)), then run the quickstart request (Windows PowerShell users can use `curl.exe`):
 
 ```sh
 curl -i -H "Authorization: Bearer $TOKEN" http://localhost:5050/materials
@@ -202,16 +222,27 @@ The response above is an actual successful response; its generated `log_id` and 
 
 ## Error responses
 
-A missing, wrong, or non-Bearer token returns `401 Unauthorized`:
+A missing or wrong key returns `401 Unauthorized`:
 
 ```sh
 curl -i http://localhost:5050/materials
+curl -i -H "X-API-Key: wrong" http://localhost:5050/materials
 ```
 
 ```json
 {"code":401,"message":"Missing or invalid API token"}
 ```
-curl -i -X POST http://localhost:5050/scrap-logs -H 'Content-Type: application/json' -d '{"job_id":"docs-example-20261012","artisan_id":"art-docs","material_type":"plastic","quantity_kg":1.25,"notes":"README quickstart example"}'
+
+Going over a rate limit returns `429 Too Many Requests` with a `Retry-After` header (see [Rate limits](#rate-limits)):
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 42
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 0
+
+{"code":429,"message":"Too many requests","retryAfter":42}
+```
 
 Invalid input returns `400 Bad Request` with a `code` and `message`. A drop-off with only `material_type` in the body:
 
@@ -253,11 +284,11 @@ An unknown route also returns `404` in the same format:
 {"code":404,"message":"Route GET /unknown not found"}
 ```
 
-Malformed JSON also returns `code` and `message`. Database failures return `500` with an `error` field. Valid catalog filters with no matches are not an error; they return `200` and `[]`.
+Malformed JSON also returns `code` and `message`. A failure on our side returns `500` with `code`, `message` and a `ref` to quote when you report it; it never includes database or stack details. Valid catalog filters with no matches are not an error; they return `200` and `[]`.
 
 ## API contract
 
-See [`openapi.yaml`](openapi.yaml) for the OpenAPI 3.0 contract (version 1.1.0), including request and response schemas.
+See [`openapi.yaml`](openapi.yaml) for the OpenAPI 3.0 contract (version 1.2.0), including request and response schemas.
 
 If you set up a database before version 1.1.0, or before the webapp accounts were added, run `npm run db:schema` in `server` again. It adds the missing tables and columns (`county`, `drop_offs`, `users`, `sessions`, and the seller and buyer columns) without deleting data.
 
@@ -280,3 +311,15 @@ cd client
 npm ci
 npm run dev
 ```
+
+Open http://localhost:5173. `npm run db:seed` creates one demo account per role, all with the password `kanairo123`:
+
+| Phone | Role |
+| --- | --- |
+| `0711000001` | Seller (needs a ramp and an accessible toilet) |
+| `0711000002` | Buyer |
+| `0711000003` | Hub manager for Dandora |
+
+New hub manager accounts need the invite code from `HUB_INVITE_CODE` in `server/.env`; sellers and buyers can sign up freely. See [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) for how the API and the webapp are protected.
+
+The webapp's routes are documented at the top of [`server/auth.js`](server/auth.js) (accounts) and in [`server/marketplace.js`](server/marketplace.js) (selling, hubs and buying).

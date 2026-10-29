@@ -2,14 +2,16 @@ openapi: 3.0.0
 info:
   title: Kanairo-Klean Provider API
   description: API contract provided by Kanairo-Klean (Team 13) for Group 1 (Artisans App) to source raw materials and log scrap.
-  version: 1.1.0
+  version: 1.2.0
 servers:
   - url: http://localhost:5050
     description: Local development (see README for setup)
   - url: https://supervoluminous-vikki-unsurlily.ngrok-free.dev
     description: Hosted for partner testing. Only up while the Kanairo-Klean team is running it.
+# Every operation needs one partner API key, sent either way below (the two entries mean "one or the other").
 security:
   - bearerAuth: []
+  - apiKeyAuth: []
 paths:
   /collection-locations:
     get:
@@ -26,6 +28,10 @@ paths:
                   $ref: '#/components/schemas/CollectionLocation'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /materials:
     get:
@@ -67,6 +73,10 @@ paths:
                 message: 'type must be one of: metal, plastic, paper, glass, e-waste'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /collection-locations/{location_id}/drop-offs:
     post:
@@ -104,6 +114,10 @@ paths:
                 message: material_type, quantity_kg and source are required
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
         '404':
           description: No active collection location has this location_id.
           content:
@@ -140,16 +154,25 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
-      description: 'Send the API token issued by Kanairo-Klean as "Authorization: Bearer <token>".'
+      description: 'Send the API key issued to you by Kanairo-Klean as "Authorization: Bearer <your-api-key>". Each consumer has its own key.'
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: The same key can be sent in the X-API-Key header instead of Authorization.
   responses:
     Unauthorized:
-      description: Missing or invalid API token.
+      description: Missing or invalid API key (no key, a wrong key, or a revoked key).
       content:
         application/json:
           schema:
@@ -157,6 +180,44 @@ components:
           example:
             code: 401
             message: Missing or invalid API token
+    TooManyRequests:
+      description: >-
+        Rate limit reached: 100 requests per minute per API key, and 300 per minute per IP address.
+        Wait the number of seconds in Retry-After, then try again.
+      headers:
+        Retry-After:
+          description: Seconds until the limit resets.
+          schema:
+            type: integer
+            example: 42
+        X-RateLimit-Limit:
+          description: Requests allowed in the current window.
+          schema:
+            type: integer
+            example: 100
+        X-RateLimit-Remaining:
+          description: Requests left in the current window.
+          schema:
+            type: integer
+            example: 0
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RateLimitError'
+          example:
+            code: 429
+            message: Too many requests
+            retryAfter: 42
+    ServerError:
+      description: Something failed on our side. The body never contains database or stack details; quote ref when reporting it.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ServerError'
+          example:
+            code: 500
+            message: Something went wrong on our side
+            ref: 3f9a1c2e
   schemas:
     MaterialType:
       type: string
@@ -354,3 +415,25 @@ components:
         message:
           type: string
           example: "Invalid material_type provided."
+
+    RateLimitError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          required:
+            - retryAfter
+          properties:
+            retryAfter:
+              type: integer
+              description: Seconds until you can try again (same as the Retry-After header).
+              example: 42
+
+    ServerError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            ref:
+              type: string
+              description: Reference to quote when reporting the error; it matches an entry in our server log.
+              example: 3f9a1c2e

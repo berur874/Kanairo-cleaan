@@ -24,6 +24,7 @@ async function signUp(role, hotspotId) {
     password: 'secret123',
     role,
     hotspot_id: hotspotId,
+    invite_code: role === 'hub_manager' ? process.env.HUB_INVITE_CODE : undefined,
   });
   return { Authorization: `Bearer ${body.token}`, user: body.user };
 }

@@ -1,7 +1,8 @@
 // User accounts for the webapp (sellers, buyers, hub managers).
 //
 // This file is the whole login implementation. Any replacement must keep the same contract:
-//   POST /auth/register  {name, phone, password, role, hotspot_id?} -> 201 {token, user}
+//   POST /auth/register  {name, phone, password, role, hotspot_id?, invite_code?} -> 201 {token, user}
+//                        (hub managers need invite_code = HUB_INVITE_CODE, otherwise 403)
 //   POST /auth/login     {phone, password}                         -> 200 {token, user}
 //   POST /auth/logout                                              -> 204
 //   GET  /auth/me                                                  -> 200 user
@@ -74,7 +75,8 @@ function sendError(res, status, message) {
   return res.status(status).json({ code: status, message });
 }
 
-function createAuth({ pool }) {
+// onServerError(res, err) answers a 500 without revealing the database error (security.js).
+function createAuth({ pool, onServerError }) {
   const router = express.Router();
 
   async function startSession(userId) {
@@ -110,7 +112,7 @@ function createAuth({ pool }) {
         req.sessionTokenHash = hashToken(token);
         next();
       } catch (err) {
-        res.status(500).json({ error: err.message });
+        onServerError(res, err);
       }
     };
   }
@@ -127,6 +129,19 @@ function createAuth({ pool }) {
       return sendError(res, 400, `password must be at least ${MIN_PASSWORD_LENGTH} characters`);
     }
     if (!ROLES.includes(role)) return sendError(res, 400, `role must be one of: ${ROLES.join(', ')}`);
+
+    // A hub manager sees sellers' and buyers' names and phone numbers and records payouts, so the
+    // role is not open to anyone: it needs the invite code from HUB_INVITE_CODE in .env.
+    // With no code configured, hub manager sign-up is switched off.
+    if (role === 'hub_manager') {
+      const expected = process.env.HUB_INVITE_CODE;
+      const given = typeof req.body?.invite_code === 'string' ? req.body.invite_code.trim() : '';
+      const ok = expected && given && crypto.timingSafeEqual(
+        crypto.createHash('sha256').update(given).digest(),
+        crypto.createHash('sha256').update(expected).digest()
+      );
+      if (!ok) return sendError(res, 403, 'Hub manager accounts need a valid invite code from Kanairo-Klean');
+    }
 
     let hotspotId = null;
     try {
@@ -148,7 +163,7 @@ function createAuth({ pool }) {
       const token = await startSession(result.insertId);
       res.status(201).json({ token, user: publicUser(await findUser(result.insertId)) });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -167,7 +182,7 @@ function createAuth({ pool }) {
       }
       res.json({ token: await startSession(row.id), user: publicUser(row) });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -176,7 +191,7 @@ function createAuth({ pool }) {
       await pool.query('DELETE FROM sessions WHERE token_hash = ?', [req.sessionTokenHash]);
       res.status(204).end();
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -194,7 +209,7 @@ function createAuth({ pool }) {
       ]);
       res.json(publicUser(await findUser(req.user.id)));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -224,7 +239,7 @@ function createAuth({ pool }) {
       await pool.query('UPDATE users SET ? WHERE id = ?', [changes, req.user.id]);
       res.json(publicUser(await findUser(req.user.id)));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -247,7 +262,7 @@ function createAuth({ pool }) {
       await pool.query('DELETE FROM sessions WHERE user_id = ? AND token_hash <> ?', [req.user.id, req.sessionTokenHash]);
       res.status(204).end();
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 

@@ -79,7 +79,8 @@ function accessibilityNearHub(hub, venues, needs) {
   };
 }
 
-function createMarketplace({ pool, requireUser, callPartner }) {
+// onServerError(res, err) answers a 500 without revealing the database error (security.js).
+function createMarketplace({ pool, requireUser, callPartner, onServerError }) {
   const router = express.Router();
   const venueCache = createVenueCache({ callPartner });
 
@@ -191,7 +192,7 @@ function createMarketplace({ pool, requireUser, callPartner }) {
         hubs: ranked,
       });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -222,7 +223,7 @@ function createMarketplace({ pool, requireUser, callPartner }) {
         };
       }));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -265,7 +266,7 @@ function createMarketplace({ pool, requireUser, callPartner }) {
         note: nearby.length ? null : `AccessMap has no venues within ${ACCESS_RADIUS_KM} km of ${hub.name} yet.`,
       });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -296,7 +297,7 @@ function createMarketplace({ pool, requireUser, callPartner }) {
 
       res.status(201).json(await getDropOff(result.insertId));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -305,7 +306,7 @@ function createMarketplace({ pool, requireUser, callPartner }) {
       const [rows] = await pool.query(`${DROP_OFF_SELECT} WHERE d.seller_id = ? ORDER BY d.created_at DESC, d.id DESC`, [req.user.id]);
       res.json(rows.map(shapeDropOff));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -324,7 +325,7 @@ function createMarketplace({ pool, requireUser, callPartner }) {
       );
       res.json(rows.map(shapeDropOff));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -372,7 +373,7 @@ function createMarketplace({ pool, requireUser, callPartner }) {
       res.json(await getDropOff(drop.id));
     } catch (err) {
       await conn.rollback();
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     } finally {
       conn.release();
     }
@@ -390,7 +391,7 @@ function createMarketplace({ pool, requireUser, callPartner }) {
       );
       res.json(rows.map(shapeOrder));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -406,7 +407,7 @@ function createMarketplace({ pool, requireUser, callPartner }) {
       await pool.query(`UPDATE transactions SET status = 'collected', collected_at = NOW() WHERE id = ?`, [order.id]);
       res.json(await getOrder(order.id));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -433,7 +434,7 @@ function createMarketplace({ pool, requireUser, callPartner }) {
         ordersToHandOver: Number(orders.to_hand_over) || 0,
       });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 
@@ -475,7 +476,7 @@ function createMarketplace({ pool, requireUser, callPartner }) {
       res.status(201).json(await getOrder(id));
     } catch (err) {
       await conn.rollback();
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     } finally {
       conn.release();
     }
@@ -486,7 +487,7 @@ function createMarketplace({ pool, requireUser, callPartner }) {
       const [rows] = await pool.query(`${ORDER_SELECT} WHERE t.buyer_id = ? ORDER BY t.created_at DESC`, [req.user.id]);
       res.json(rows.map(shapeOrder));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      onServerError(res, err);
     }
   });
 

@@ -1,14 +1,12 @@
 // src/utils/storage.jsx
-const API_URL = import.meta.env.VITE_API_URL;
+import { apiFetch } from '../auth/session.js';
 
 /**
- * Fetch all hotspots with their logged materials from the database.
+ * Fetch all hotspots with their logged materials from the database (needs a logged-in user).
  * Returns: [{ id, name, materials: [{ name, quantity }] }]
  */
-export async function getHotspots() {
-    const res = await fetch(`${API_URL}/hotspots`);
-    if (!res.ok) throw new Error(`Failed to load hotspots: ${res.status}`);
-    return res.json();
+export function getHotspots() {
+    return apiFetch('/hotspots');
 }
 
 /** Pure helper — unchanged. Aggregates quantities by material name. */

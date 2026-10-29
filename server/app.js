@@ -2,17 +2,18 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { createAuth } = require('./auth');
 const { createMarketplace } = require('./marketplace');
 const { ACCESSIBILITY_FEATURES } = require('./accessibility');
+const { loadApiKeys, createApiKeyCheck, createRateLimiter, sendServerError, envNumber } = require('./security');
 
 const app = express();
 
 // Week 10 Part E: record every request (e.g. from Group 1 via ngrok) to logs/requests.jsonl, one JSON object per line.
-// Never records the token itself, only whether a Bearer header was sent. Off under Jest.
+// Never records keys or tokens (only whether an Authorization header was sent), and redacts passwords,
+// invite codes, tokens and keys from logged request bodies. Off under Jest.
 const REQUEST_LOG = path.join(__dirname, 'logs', 'requests.jsonl');
 if (process.env.NODE_ENV !== 'test') {
   fs.mkdirSync(path.dirname(REQUEST_LOG), { recursive: true });
@@ -39,7 +40,7 @@ if (process.env.NODE_ENV !== 'test') {
         entry.error = responseBody;
         if (req.body && Object.keys(req.body).length) {
           entry.requestBody = Object.fromEntries(Object.entries(req.body).map(
-            ([key, value]) => [key, /password/i.test(key) ? '[redacted]' : value]
+            ([key, value]) => [key, /password|invite|token|key/i.test(key) ? '[redacted]' : value]
           ));
         }
       }
@@ -53,32 +54,23 @@ if (process.env.NODE_ENV !== 'test') {
 app.use(cors());
 app.use(express.json());
 
-function rateLimit({ windowMs, max }) {
-  const hits = new Map(); 
-  return (req, res, next) => {
-    const authHeader = req.get('Authorization') || '';
-    const id = authHeader.startsWith('Bearer ') ? authHeader : req.ip;
-    const now = Date.now();
+// Week 9 rate limits (see SECURITY_AUDIT.md for why these numbers). Each can be overridden in .env.
+const MINUTE = 60 * 1000;
+const RATE_LIMITS = {
+  // Every request, counted per client IP. Counting by IP (not by whatever token is sent) means
+  // sending a different made-up token each time cannot be used to dodge the limit.
+  ip: { windowMs: MINUTE, max: envNumber('IP_RATE_LIMIT', 300) },
+  // The partner API, counted per consumer once their key has been checked.
+  partner: { windowMs: MINUTE, max: envNumber('PARTNER_RATE_LIMIT', 100) },
+  // Log in / sign up, counted per IP, to slow down password guessing.
+  auth: { windowMs: 15 * MINUTE, max: envNumber('AUTH_RATE_LIMIT', 20) },
+};
 
-    let entry = hits.get(id);
-    if (!entry || now >= entry.resetAt) {
-      entry = { count: 0, resetAt: now + windowMs };
-      hits.set(id, entry);
-    }
-
-    entry.count += 1;
-    if (entry.count > max) {
-      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
-      res.set('Retry-After', String(retryAfter));
-      return res.status(429).json({ message: 'Too many requests', retryAfter });
-    }
-
-    next();
-  };
-}
-
-// Global rate limiter: 100 requests per minute
-app.use(rateLimit({ windowMs: 60000, max: 100 }));
+// ngrok runs on this machine and forwards each visitor's address in X-Forwarded-For. Trusting that
+// header only from loopback means req.ip is the real visitor behind ngrok, while a client connecting
+// directly cannot fake its address.
+app.set('trust proxy', 'loopback');
+app.use(createRateLimiter({ ...RATE_LIMITS.ip, keyFor: (req) => `ip:${req.ip}` }));
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -94,7 +86,8 @@ const pool = mysql.createPool({
 }).promise();
 
 // Webapp accounts (sellers, buyers, hub managers). See auth.js for the contract.
-const { router: authRouter, requireUser } = createAuth({ pool });
+const { router: authRouter, requireUser } = createAuth({ pool, onServerError: sendServerError });
+app.use(['/auth/login', '/auth/register'], createRateLimiter({ ...RATE_LIMITS.auth, keyFor: (req) => `auth:${req.ip}` }));
 app.use('/auth', authRouter);
 
 async function ensureScrapLogsSchema() {
@@ -126,19 +119,13 @@ function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function sha256(value) {
-  return crypto.createHash('sha256').update(value).digest();
-}
-
-// Contract routes require "Authorization: Bearer <API_TOKEN>". Fails closed if API_TOKEN is unset.
-function requireApiToken(req, res, next) {
-  const expected = process.env.API_TOKEN;
-  const [scheme, token] = (req.get('Authorization') || '').split(' ');
-  if (!expected || scheme !== 'Bearer' || !token || !crypto.timingSafeEqual(sha256(token), sha256(expected))) {
-    return res.status(401).json({ code: 401, message: 'Missing or invalid API token' });
-  }
-  next();
-}
+// Partner API routes need a valid key (one per consumer, from API_KEYS in .env), then count towards
+// that consumer's rate limit. Express runs the two in order; with no valid key the route never runs.
+const API_KEYS = loadApiKeys();
+const requireApiToken = [
+  createApiKeyCheck(API_KEYS),
+  createRateLimiter({ ...RATE_LIMITS.partner, keyFor: (req) => `consumer:${req.apiConsumer}` }),
+];
 
 //To be used by group one — response shaped to match openapi.yaml Material schema exactly
 app.get('/materials', requireApiToken, async (req, res) => {
@@ -169,7 +156,7 @@ app.get('/materials', requireApiToken, async (req, res) => {
     }));
     res.json(materials);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -186,17 +173,19 @@ app.get('/collection-locations', requireApiToken, async (req, res) => {
     }));
     res.json(locations);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
-//Internal — not part of the Group 1 contract, feeds the frontend price ticker/marketplace UI
+//Internal — not part of the Group 1 contract, feeds the frontend price ticker/marketplace UI.
+// Public (no key) because the logged-out landing page shows these prices; see SECURITY_AUDIT.md.
+// Explicit columns, so a column added to the table later is not published by accident.
 app.get('/materials/market', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM materials');
+    const [rows] = await pool.query('SELECT id, name, type, price, unit, change_pct, trend FROM materials');
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -210,7 +199,7 @@ app.get('/collection-locations/showcase', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -266,7 +255,7 @@ app.post('/collection-locations/:location_id/drop-offs', requireApiToken, async 
       created_at: new Date(saved.created_at).toISOString(),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -316,13 +305,13 @@ app.post('/scrap-logs', requireApiToken, async (req, res) => {
       logged_at: new Date(saved.logged_at).toISOString(),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
 
 //To be used by the frontend(client)
-app.get('/hotspots', async (req, res) => {
+app.get('/hotspots', requireUser(), async (req, res) => {
   try {
     const [hotspots] = await pool.query('SELECT id, name FROM hotspots ORDER BY name');
     const [materials] = await pool.query('SELECT hotspot_id, material_name, quantity FROM hotspot_materials');
@@ -335,7 +324,7 @@ app.get('/hotspots', async (req, res) => {
     }));
     res.json(grouped);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(res, err);
   }
 });
 
@@ -391,7 +380,7 @@ function pickAccessibility(a) {
 }
 
 // GET /api/venues
-app.get('/partner/venues', async (req, res) => {
+app.get('/partner/venues', requireUser(), async (req, res) => {
   const category = req.query.category ?? 'market';
   if (!PARTNER_CATEGORIES.includes(category)) {
     return buildBadRequest(res, `category must be one of: ${PARTNER_CATEGORIES.join(', ')}`);
@@ -425,7 +414,7 @@ app.get('/partner/venues', async (req, res) => {
 });
 
 // GET /api/venues/:slug
-app.get('/partner/venues/:slug', async (req, res) => {
+app.get('/partner/venues/:slug', requireUser(), async (req, res) => {
   const { slug } = req.params;
   if (!SLUG_PATTERN.test(slug)) return buildBadRequest(res, 'slug must be lowercase letters, digits and hyphens');
 
@@ -450,7 +439,7 @@ app.get('/partner/venues/:slug', async (req, res) => {
 });
 
 // GET /api/venues/:slug/rating
-app.get('/partner/venues/:slug/rating', async (req, res) => {
+app.get('/partner/venues/:slug/rating', requireUser(), async (req, res) => {
   const { slug } = req.params;
   if (!SLUG_PATTERN.test(slug)) return buildBadRequest(res, 'slug must be lowercase letters, digits and hyphens');
 
@@ -468,7 +457,7 @@ app.get('/partner/venues/:slug/rating', async (req, res) => {
 });
 
 // POST /api/venues. Writes to Group 12's live directory.
-app.post('/partner/venues', async (req, res) => {
+app.post('/partner/venues', requireUser(), async (req, res) => {
   const { name, area, address, category, accessibility, coordinates } = req.body || {};
   if (category !== undefined && !PARTNER_CATEGORIES.includes(category)) {
     return buildBadRequest(res, `category must be one of: ${PARTNER_CATEGORIES.join(', ')}`);
@@ -487,7 +476,7 @@ app.post('/partner/venues', async (req, res) => {
 });
 
 // POST /api/reports. Writes to Group 12's live data.
-app.post('/partner/reports', async (req, res) => {
+app.post('/partner/reports', requireUser(), async (req, res) => {
   const { venueId, rating, description, visitedAt, accessibility } = req.body || {};
 
   try {
@@ -503,7 +492,7 @@ app.post('/partner/reports', async (req, res) => {
 });
 
 // Webapp buying and selling between sellers, hubs and buyers. See marketplace.js.
-const { router: marketplaceRouter, venueCache } = createMarketplace({ pool, requireUser, callPartner });
+const { router: marketplaceRouter, venueCache } = createMarketplace({ pool, requireUser, callPartner, onServerError: sendServerError });
 app.use(marketplaceRouter);
 
 app.use((req, res) => {
@@ -511,8 +500,10 @@ app.use((req, res) => {
 });
 
 // Express 4-arg signature marks this as the error handler (e.g. malformed JSON bodies).
+// Client errors (4xx) keep their message; anything else is a 500 that reveals no internals.
 app.use((err, req, res, next) => {
   const status = err.status || err.statusCode || 500;
+  if (status >= 500) return sendServerError(res, err);
   const message = err.type === 'entity.parse.failed' ? 'Request body must be valid JSON' : err.message;
   res.status(status).json({ code: status, message });
 });

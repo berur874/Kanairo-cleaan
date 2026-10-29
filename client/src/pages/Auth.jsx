@@ -85,7 +85,7 @@ export function Signup() {
     const { register } = useAuth();
     const navigate = useNavigate();
     const [role, setRole] = useState('seller');
-    const [fields, setFields] = useState({ name: '', phone: '', password: '', hotspot_id: '' });
+    const [fields, setFields] = useState({ name: '', phone: '', password: '', hotspot_id: '', invite_code: '' });
     const [hubs, setHubs] = useState([]);
     const [error, setError] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -114,6 +114,7 @@ export function Signup() {
                 password: fields.password,
                 role,
                 hotspot_id: role === 'hub_manager' ? Number(fields.hotspot_id) : undefined,
+                invite_code: role === 'hub_manager' ? fields.invite_code : undefined,
             });
             navigate('/onboarding', { replace: true });
         } catch (err) {
@@ -149,6 +150,11 @@ export function Signup() {
                             <option value="" disabled>Choose a hub…</option>
                             {hubs.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
                         </select>
+
+                        <label htmlFor="signup-invite">Hub invite code</label>
+                        <input id="signup-invite" type="text" required autoComplete="off"
+                            value={fields.invite_code} onChange={set('invite_code')} />
+                        <p className="field-hint">Kanairo-Klean gives this code to hub managers. Ask us if you don't have one.</p>
                     </>
                 )}
 
