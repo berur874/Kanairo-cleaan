@@ -8,6 +8,7 @@ const { createAuth } = require('./auth');
 const { createMarketplace } = require('./marketplace');
 const { ACCESSIBILITY_FEATURES } = require('./accessibility');
 const { loadApiKeys, createApiKeyCheck, createRateLimiter, sendServerError, envNumber } = require('./security');
+const { fetchWithRetry, failureReason } = require('./resilientFetch');
 
 const app = express();
 
@@ -341,26 +342,34 @@ const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 class PartnerUnavailable extends Error {}
 
-// Calls Group 12 and returns { status, body }. Throws PartnerUnavailable when they cannot be reached.
+// Week 11: every call to Group 12 gets a timeout and, for GETs only, up to 2 retries (resilientFetch.js).
+// Numbers and why: RESILIENCE_NOTES.md. Worst case for a GET: 3 x 1500 + 200 + 400 = 5100 ms.
+const PARTNER_CALL = {
+  timeoutMs: envNumber('PARTNER_TIMEOUT_MS', 1500),
+  retries: envNumber('PARTNER_RETRIES', 2),
+  delayMs: envNumber('PARTNER_RETRY_DELAY_MS', 200),
+};
+
+// Calls Group 12 and returns { status, body }. Throws PartnerUnavailable when they cannot be reached
+// (after the retries), with the reason, e.g. "timeout" or "ECONNREFUSED".
 async function callPartner(path, { method = 'GET', body } = {}) {
   const PARTNER_URL = process.env.PARTNER_URL;
-  const PARTNER_KEY = process.env.PARTNER_API_KEY;
+  const PARTNER_KEY = process.env.PARTNER_API_KEY; // never log this
   if (!PARTNER_URL) throw new PartnerUnavailable('PARTNER_URL is not set');
 
-  const headers = PARTNER_KEY ? { 'X-API-Key': PARTNER_KEY } : {};
+  // Group 12 issued our key in their Week 9; they expect it in the "am-api-key" header.
+  const headers = PARTNER_KEY ? { 'am-api-key': PARTNER_KEY } : {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
   let r;
   try {
-    r = await fetch(`${PARTNER_URL}${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(1500), // Abort after 1.5 seconds
-    });
+    r = await fetchWithRetry(
+      `${PARTNER_URL}${path}`,
+      { method, headers, body: body === undefined ? undefined : JSON.stringify(body) },
+      { ...PARTNER_CALL, label: `partner ${path}` }
+    );
   } catch (err) {
-    const reason = err.name === 'TimeoutError' ? 'timeout' : (err.cause?.code || err.message);
-    throw new PartnerUnavailable(reason);
+    throw new PartnerUnavailable(failureReason(err));
   }
   return { status: r.status, body: await r.json().catch(() => null) };
 }
@@ -379,7 +388,11 @@ function pickAccessibility(a) {
   return Object.fromEntries(ACCESSIBILITY_FEATURES.map((k) => [k, a[k]]));
 }
 
-// GET /api/venues
+// Week 11 Part D: the last good venue list per category, kept in memory (so it is gone after a
+// restart). When Group 12 can't be reached we answer with it, flagged stale, instead of an error.
+const lastGoodVenues = new Map(); // category -> { data, asOf }
+
+// GET /api/venues. Answers { data, stale, asOf }: live data, or the saved copy when Group 12 fails.
 app.get('/partner/venues', requireUser(), async (req, res) => {
   const category = req.query.category ?? 'market';
   if (!PARTNER_CATEGORIES.includes(category)) {
@@ -388,13 +401,10 @@ app.get('/partner/venues', requireUser(), async (req, res) => {
 
   try {
     const r = await callPartner(`/api/venues?category=${category}`);
-    if (r.status !== 200) return sendPartnerFailure(res, r);
-    if (!Array.isArray(r.body)) {
-      console.error('partner returned an unexpected shape (expected an array of venues)');
-      return res.status(502).json({ code: 502, message: 'Partner data unavailable' });
-    }
+    if (r.status !== 200) throw r;
+    if (!Array.isArray(r.body)) throw new PartnerUnavailable('unexpected shape (expected an array of venues)');
 
-    res.json(r.body.map((v) => {
+    const data = r.body.map((v) => {
       const a = v.accessibility || {};
       return {
         id: v.id,
@@ -407,9 +417,16 @@ app.get('/partner/venues', requireUser(), async (req, res) => {
         accessibleParking: a.accessibleParking === true,
         featureCount: ACCESSIBILITY_FEATURES.filter((k) => a[k] === true).length,
       };
-    }));
+    });
+    const saved = { data, asOf: new Date().toISOString() };
+    lastGoodVenues.set(category, saved);
+    res.json({ data, stale: false, asOf: saved.asOf });
   } catch (err) {
-    sendPartnerFailure(res, err);
+    const saved = lastGoodVenues.get(category);
+    if (!saved) return sendPartnerFailure(res, err);
+    // The failure is still logged, so a wrong key (401) isn't hidden from us by the saved copy.
+    console.error(`partner call failed (${err instanceof PartnerUnavailable ? err.message : `status ${err.status}`}); serving ${category} venues saved at ${saved.asOf}`);
+    res.json({ data: saved.data, stale: true, asOf: saved.asOf });
   }
 });
 

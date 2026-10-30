@@ -249,6 +249,8 @@ function AddVenueForm({ defaultCategory, onAdded }) {
 export default function PartnerVenues() {
     const [category, setCategory] = useState('market');
     const [venues, setVenues] = useState(null);
+    // When Group 12 isn't responding, the server sends its saved copy: { stale: true, asOf }.
+    const [savedAt, setSavedAt] = useState(null);
     const [error, setError] = useState(false);
     const [selected, setSelected] = useState(null);
     const [showAdd, setShowAdd] = useState(false);
@@ -259,7 +261,11 @@ export default function PartnerVenues() {
         let alive = true;
 
         getPartnerVenues(category)
-            .then((v) => { if (alive) setVenues(v); })
+            .then(({ data, stale, asOf }) => {
+                if (!alive) return;
+                setVenues(data);
+                setSavedAt(stale ? asOf : null);
+            })
             .catch(() => { if (alive) setError(true); });
 
         return () => { alive = false; };
@@ -311,13 +317,18 @@ export default function PartnerVenues() {
             )}
 
             {error ? (
-                <p style={muted}>Partner data is unavailable right now. The rest of the dashboard still works.</p>
+                <p style={muted}>AccessMap data is unavailable right now. Try again in a minute; the rest of the dashboard still works.</p>
             ) : venues === null ? (
                 <p style={muted}>Loading partner venues…</p>
             ) : venues.length === 0 ? (
                 <p style={muted}>No {category} venues listed by AccessMap yet.</p>
             ) : (
                 <div>
+                    {savedAt && (
+                        <p className="access-banner warn stale-banner" role="status">
+                            Showing saved data from {new Date(savedAt).toLocaleTimeString()}. AccessMap is not responding.
+                        </p>
+                    )}
                     <div className="txn-head-row">
                         {['Venue', 'Area', 'Ramp', 'Toilet', 'Features'].map((t) => (
                             <span key={t}>{t}</span>

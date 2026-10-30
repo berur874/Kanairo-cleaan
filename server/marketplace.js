@@ -45,11 +45,19 @@ function createVenueCache({ callPartner }) {
   return {
     async get() {
       if (venues && Date.now() - fetchedAt < VENUE_CACHE_MS) return venues;
-      const r = await callPartner('/api/venues');
-      if (r.status !== 200 || !Array.isArray(r.body)) throw new Error(`AccessMap returned status ${r.status}`);
-      venues = r.body;
-      fetchedAt = Date.now();
-      return venues;
+      try {
+        const r = await callPartner('/api/venues');
+        if (r.status !== 200 || !Array.isArray(r.body)) throw new Error(`AccessMap returned status ${r.status}`);
+        venues = r.body;
+        fetchedAt = Date.now();
+        return venues;
+      } catch (err) {
+        // Week 11 fallback: an older list beats no accessibility ranking at all. Only with nothing
+        // saved does the caller get the error (and shows its "AccessMap is unavailable" note).
+        if (!venues) throw err;
+        console.error(`AccessMap refresh failed (${err.message}); using the venue list saved at ${new Date(fetchedAt).toISOString()}`);
+        return venues;
+      }
     },
     set(list) {
       venues = list;
