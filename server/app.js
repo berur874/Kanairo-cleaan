@@ -344,11 +344,10 @@ class PartnerUnavailable extends Error {}
 // Calls Group 12 and returns { status, body }. Throws PartnerUnavailable when they cannot be reached.
 async function callPartner(path, { method = 'GET', body } = {}) {
   const PARTNER_URL = process.env.PARTNER_URL;
-  const PARTNER_KEY = process.env.PARTNER_API_KEY; // never log this
+  const PARTNER_KEY = process.env.PARTNER_API_KEY;
   if (!PARTNER_URL) throw new PartnerUnavailable('PARTNER_URL is not set');
 
-  // Group 12 issued our key in their Week 9; they expect it in the "am-api-key" header.
-  const headers = PARTNER_KEY ? { 'am-api-key': PARTNER_KEY } : {};
+  const headers = PARTNER_KEY ? { 'X-API-Key': PARTNER_KEY } : {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
   let r;
@@ -357,13 +356,14 @@ async function callPartner(path, { method = 'GET', body } = {}) {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(1500), // Abort after 1.5 seconds
     });
   } catch (err) {
-    throw new PartnerUnavailable(err.cause?.code || err.message);
+    const reason = err.name === 'TimeoutError' ? 'timeout' : (err.cause?.code || err.message);
+    throw new PartnerUnavailable(reason);
   }
   return { status: r.status, body: await r.json().catch(() => null) };
 }
-
 // Group 12's 400/404/409 answers describe the caller's input, so they are passed on with their message.
 // Anything else (5xx, auth, a failed call) becomes our 502.
 function sendPartnerFailure(res, err) {
