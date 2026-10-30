@@ -146,7 +146,7 @@ For each item: what we looked at, what we found, and what we did.
 | **Unlimited login attempts** | 20 per 15 minutes per IP |
 | CORS allows any origin | Accepted. We authenticate with headers, not cookies, so another website can't use a visitor's session. |
 | The webapp keeps its session token in `localStorage`, which a cross-site scripting bug could read | Accepted for now. React escapes all output, and the client never uses `dangerouslySetInnerHTML` or `innerHTML` (checked). Changing a password logs out every other session, and sessions expire after 7 days. |
-| **Group 12 started requiring an API key** (their own Week 9). Our calls to them now get `401 API Key not found`. | Open: we need their key and header name. Meanwhile our server answers "Partner data unavailable" (502) without leaking anything, and hub recommendations still work without the AccessMap ranking. Their key will go in `PARTNER_API_KEY` in `.env`, never in code. |
+| **Group 12 started requiring an API key** (their own Week 9). Our calls to them got `401 API Key not found`; while that lasted, our server answered "Partner data unavailable" (502) without leaking anything, and hub recommendations still worked without the AccessMap ranking. | **Resolved 2026-10-30:** Group 12 sent our key privately. It is in `PARTNER_API_KEY` in `server/.env` (never in code) and is sent in their `am-api-key` header. Their contract tests pass again. |
 
 ## 5. Tests
 
@@ -160,4 +160,4 @@ Added in `server/__tests__/security.test.js`, `user-auth.test.js` and `flow.test
 - Hub manager signup without or with a wrong invite code → 403
 - `PATCH /auth/me` ignores `role` and `hotspot_id`
 
-Result: all of our own tests pass. The only failures are the 7 tests in `patner.test.js`, which call Group 12's live API directly and now get 401 until they give us a key.
+Result: the whole suite passes, including the 7 contract tests in `patner.test.js` that call Group 12's live API with the key they issued us.

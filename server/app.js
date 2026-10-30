@@ -347,8 +347,8 @@ async function callPartner(path, { method = 'GET', body } = {}) {
   const PARTNER_KEY = process.env.PARTNER_API_KEY; // never log this
   if (!PARTNER_URL) throw new PartnerUnavailable('PARTNER_URL is not set');
 
-  // Group 12 has not issued keys yet; send the header only once we have one.
-  const headers = PARTNER_KEY ? { 'X-API-Key': PARTNER_KEY } : {};
+  // Group 12 issued our key in their Week 9; they expect it in the "am-api-key" header.
+  const headers = PARTNER_KEY ? { 'am-api-key': PARTNER_KEY } : {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
   let r;

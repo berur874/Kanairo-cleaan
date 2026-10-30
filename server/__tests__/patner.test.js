@@ -1,7 +1,16 @@
 const request = require('supertest');
+require('dotenv').config({ quiet: true });
 
 // Set this to your partner's running server URL (local or Render live URL)
 const BASE_URL = process.env.PARTNER_URL || 'https://accessmap-nairobi-api-1.onrender.com';
+
+// Group 12 requires their issued key in the "am-api-key" header (PARTNER_API_KEY in server/.env).
+const PARTNER_KEY = process.env.PARTNER_API_KEY;
+function partner() {
+  const agent = request(BASE_URL);
+  const withKey = (req) => (PARTNER_KEY ? req.set('am-api-key', PARTNER_KEY) : req);
+  return { get: (path) => withKey(agent.get(path)), post: (path) => withKey(agent.post(path)) };
+}
 
 // The POST tests create real venues and reports in Group 12's live data (see INTEGRATION_LOG.md row 2).
 // They only run when PARTNER_WRITE_TESTS=1, e.g. against a local copy of their server.
@@ -14,7 +23,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
   // ---------------------------------------------------------------------------
   describe('GET /api/venues', () => {
     it('returns 200 and an array of venues matching the Venue schema (Happy Path)', async () => {
-      const res = await request(BASE_URL)
+      const res = await partner()
         .get('/api/venues')
         .query({ category: 'hospital', area: 'Upper Hill' });
 
@@ -45,7 +54,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
     });
 
     it('handles boolean query filter parameter correctly', async () => {
-      const res = await request(BASE_URL)
+      const res = await partner()
         .get('/api/venues')
         .query({ accessible: true });
 
@@ -54,7 +63,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
     });
 
     it('returns 400 when an invalid query parameter value is supplied', async () => {
-      const res = await request(BASE_URL)
+      const res = await partner()
         .get('/api/venues')
         .query({ accessible: 'not-a-boolean' });
 
@@ -90,7 +99,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
     };
 
     it('returns 201 and creates a venue given valid data (Happy Path)', async () => {
-      const res = await request(BASE_URL)
+      const res = await partner()
         .post('/api/venues')
         .send(validVenue);
 
@@ -106,7 +115,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
       const invalidPayload = { ...validVenue };
       delete invalidPayload.name;
 
-      const res = await request(BASE_URL)
+      const res = await partner()
         .post('/api/venues')
         .send(invalidPayload);
 
@@ -133,7 +142,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
         coordinates: { lat: -1.3004, lng: 36.8073 }
       };
 
-      const res = await request(BASE_URL)
+      const res = await partner()
         .post('/api/venues')
         .send(duplicatePayload);
 
@@ -148,7 +157,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
   // ---------------------------------------------------------------------------
   describe('GET /api/venues/:slug', () => {
     it('returns 200 and full venue details for an existing slug (Happy Path)', async () => {
-      const res = await request(BASE_URL)
+      const res = await partner()
         .get('/api/venues/kenyatta-national-hospital');
 
       expect(res.status).toBe(200);
@@ -159,7 +168,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
     });
 
     it('returns 404 for a non-existent venue slug', async () => {
-      const res = await request(BASE_URL)
+      const res = await partner()
         .get('/api/venues/non-existent-venue-slug-99999');
 
       expect(res.status).toBe(404);
@@ -172,7 +181,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
   // ---------------------------------------------------------------------------
   describe('GET /api/venues/:slug/rating', () => {
     it('returns 200 and rating properties for an existing venue', async () => {
-      const res = await request(BASE_URL)
+      const res = await partner()
         .get('/api/venues/kenyatta-national-hospital/rating');
 
       expect(res.status).toBe(200);
@@ -184,7 +193,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
     });
 
     it('returns 404 when querying rating for a non-existent slug', async () => {
-      const res = await request(BASE_URL)
+      const res = await partner()
         .get('/api/venues/non-existent-venue-slug-99999/rating');
 
       expect(res.status).toBe(404);
@@ -214,7 +223,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
         }
       };
 
-      const res = await request(BASE_URL)
+      const res = await partner()
         .post('/api/reports')
         .send(validReport);
 
@@ -236,7 +245,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
         }
       };
 
-      const res = await request(BASE_URL)
+      const res = await partner()
         .post('/api/reports')
         .send(invalidReport);
 
@@ -255,7 +264,7 @@ describe('Partner API Contract Tests - AccessMap Nairobi', () => {
         }
       };
 
-      const res = await request(BASE_URL)
+      const res = await partner()
         .post('/api/reports')
         .send(reportForMissingVenue);
 
