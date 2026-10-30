@@ -312,7 +312,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:5173. `npm run db:seed` creates one demo account per role, all with the password `kanairo123`:
+Open <http://localhost:5173>. `npm run db:seed` creates one demo account per role, all with the password `kanairo123`:
 
 | Phone | Role |
 | --- | --- |
