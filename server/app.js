@@ -9,8 +9,12 @@ const { createMarketplace } = require('./marketplace');
 const { ACCESSIBILITY_FEATURES } = require('./accessibility');
 const { loadApiKeys, createApiKeyCheck, createRateLimiter, sendServerError, envNumber } = require('./security');
 const { fetchWithRetry, failureReason } = require('./resilientFetch');
+const { monitor, statsHandler, countPartnerFallback } = require('./monitoring');
 
 const app = express();
+
+// Week 12: FIRST, so requests rejected later (401, 429, 404) are logged and counted too.
+app.use(monitor);
 
 // Week 10 Part E: record every request (e.g. from Group 1 via ngrok) to logs/requests.jsonl, one JSON object per line.
 // Never records keys or tokens (only whether an Authorization header was sent), and redacts passwords,
@@ -127,6 +131,10 @@ const requireApiToken = [
   createApiKeyCheck(API_KEYS),
   createRateLimiter({ ...RATE_LIMITS.partner, keyFor: (req) => `consumer:${req.apiConsumer}` }),
 ];
+
+// Week 12: running totals since the server started (monitoring.js). Needs a partner API key like
+// every other partner endpoint. It doesn't count itself in its own reply, only in the next one.
+app.get('/stats', requireApiToken, statsHandler);
 
 //To be used by group one — response shaped to match openapi.yaml Material schema exactly
 app.get('/materials', requireApiToken, async (req, res) => {
@@ -426,6 +434,7 @@ app.get('/partner/venues', requireUser(), async (req, res) => {
     if (!saved) return sendPartnerFailure(res, err);
     // The failure is still logged, so a wrong key (401) isn't hidden from us by the saved copy.
     console.error(`partner call failed (${err instanceof PartnerUnavailable ? err.message : `status ${err.status}`}); serving ${category} venues saved at ${saved.asOf}`);
+    countPartnerFallback();
     res.json({ data: saved.data, stale: true, asOf: saved.asOf });
   }
 });

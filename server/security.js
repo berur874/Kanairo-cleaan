@@ -43,6 +43,9 @@ function createApiKeyCheck(keys) {
     }
     if (!match) return res.status(401).json({ code: 401, message: 'Missing or invalid API token' });
     req.apiConsumer = match.consumer;
+    // Week 12: a label for the logs. 6 hex characters of the key's SHA-256: the same key always gives
+    // the same label, and nobody can get the key back from it.
+    req.apiKeyFingerprint = `key-${match.hash.toString('hex').slice(0, 6)}`;
     next();
   };
 }
