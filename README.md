@@ -323,3 +323,11 @@ Open <http://localhost:5173>. `npm run db:seed` creates one demo account per rol
 New hub manager accounts need the invite code from `HUB_INVITE_CODE` in `server/.env`; sellers and buyers can sign up freely. See [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) for how the API and the webapp are protected.
 
 The webapp's routes are documented at the top of [`server/auth.js`](server/auth.js) (accounts) and in [`server/marketplace.js`](server/marketplace.js) (selling, hubs and buying).
+
+## GET /stats
+
+Returns in-memory request totals since the server started. Requires the same
+`X-API-Key` header as every other partner endpoint.
+
+```bash
+curl -s -H "X-API-Key: <your-api-key>" http://localhost:5050/stats

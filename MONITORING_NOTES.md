@@ -108,3 +108,57 @@ In the second run, our Week 9 limit of 100 requests per minute per key kicked in
 - The only request over 3 ms was the first one after startup (`GET /materials/market`, 12.4 ms), when the database connection pool opens its first connection.
 
 **Still to do:** ask Group 1 to run `traffic.js` against our ngrok URL with the key we issued them. Their requests will show up as `caller: "key-5117b8"`, separate from our `key-be0736`.
+
+## Part E — Reading my own data
+
+### 1. Prediction vs. what the data shows
+
+- **Slowest endpoint — predicted `GET /partner/venues`.**
+  Actual: our partner endpoints never appeared in this run, because the traffic
+  script doesn't call them. Across everything that *was* exercised, the slowest
+  single request was `GET /materials/market` at 12.4 ms (its only call), and
+  every other route stayed under 3 ms. So the prediction is **not yet tested**,
+  not disproved — I need traffic that actually hits `/partner/venues`.
+
+- **Most errors — predicted `/auth/login` or `/partner/venues`.**
+  Actual: **zero 5xx and zero login traffic.** The 202 client errors were all
+  deliberate (bad keys, bad filters, unknown ids, and 90 rate-limited calls).
+  My prediction was about *server* failures; the data shows the failures were
+  all caller-side, which is a different finding than I expected.
+
+### 2. One real pattern, with figures
+
+`GET /materials` handled 164 calls, averaged **1.1 ms**, worst case **3 ms**,
+and **113 of its 164 calls (69%) were 4xx**. In the N=200 run alone, 31 of the
+requests to it were 401 (no key) and part of the 90 were 429 (rate limit).
+So the busiest route by far is dominated by *rejected* calls, not successful
+ones — the endpoint is cheap, but it's absorbing almost all the noise.
+
+Secondary pattern: `POST /collection-locations/:location_id/drop-offs` had 32
+calls, **all 32 of them 4xx** (the mix only ever posts to a location that
+doesn't exist). That's expected by design of the traffic script, not a bug.
+
+### 3. Why, and what I'd check next
+
+- **Hypothesis:** the `GET /materials` 4xx load is an artefact of my traffic
+  mix, not real client behaviour — the mix deliberately includes a no-key call
+  and an invalid filter, and the rate limiter turns sustained load into 429s.
+  The 12.4 ms first call is almost certainly cold-start (first DB pool
+  connection), not a real slow path.
+- **What I'd check next:** (a) run the script *without* the no-key and
+  invalid-filter entries to get a clean baseline for `GET /materials`; (b) send
+  traffic that actually hits `/partner/venues` and `/auth/login` to test my
+  Part A predictions; (c) confirm the cold-start theory by warming the pool and
+  re-reading `maxMs` for `/materials/market`.
+
+### 4. One production alert
+
+- **Metric:** `errorRatePercent` (5xx only) from `/stats`.
+- **Threshold:** > 2% for 5 consecutive minutes (i.e. a sustained 5xx rate, not
+  one blip).
+- **What should happen:** page on-call, and — because of Week 11 — the feature
+  should **already** be serving saved AccessMap data via the fallback while a
+  human fixes the cause. `partnerFallbacks` going up is the signal that users
+  are still being served. If `partnerFallbacks` is climbing *and*
+  `errorRatePercent` is above threshold, the on-call knows it's an upstream
+  (Group 12) problem, not ours.
