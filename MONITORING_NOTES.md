@@ -1,5 +1,28 @@
 # Monitoring Notes (Week 12)
 
+## Part A Making the Prediction
+
+### 1. Slowest Endpoint Prediction
+
+- **Predicted Endpoint:** `GET /partner/venues`
+- **Reason:** This endpoint makes an outbound HTTP call (`callPartner`) to an upstream third-party server (`Group 12`). Its total response time includes external network latency, upstream processing time, and potential timeouts, making it inherently slower than local database queries.
+
+### 2. Most Error-Prone Endpoint Prediction
+
+- **Predicted Endpoint:** `POST /auth/login` (or `GET /partner/venues`)
+- **Reason:** `/auth/login` will see frequent `401 Unauthorized` responses from invalid credentials during user login attempts. Alternatively, `/partner/venues` will produce `502 Bad Gateway` errors whenever the upstream partner server is offline or flaky.
+
+## Part B - Request Logging
+
+``` json
+{"time":"2026-11-04T08:41:35.155Z","method":"GET","path":"/hotspots","status":200,"ms":5.6,"caller":"user-6"}
+08:41:35 local GET /hotspots -> 200
+{"time":"2026-11-04T08:41:35.178Z","method":"GET","path":"/hotspots","status":401,"ms":4,"caller":"none"}
+08:41:35 local GET /hotspots -> 401
+{"time":"2026-11-04T08:41:35.198Z","method":"GET","path":"/hotspots","status":401,"ms":1.7,"caller":"none"}
+08:41:35 local GET /hotspots -> 401
+```
+
 ## Part C — The `/stats` endpoint
 
 `GET /stats` (`server/monitoring.js`, registered in `server/app.js`) needs a partner API key like every other partner endpoint. Without one it answers 401.
