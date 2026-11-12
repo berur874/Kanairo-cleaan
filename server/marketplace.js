@@ -13,6 +13,7 @@
 
 const express = require('express');
 const { ACCESSIBILITY_FEATURES } = require('./accessibility');
+const { getPartnerVersion } = require('./partner');
 
 // AccessMap venues within this distance of a hub count towards its accessibility.
 const ACCESS_RADIUS_KM = 3;
@@ -46,9 +47,10 @@ function createVenueCache({ callPartner }) {
     async get() {
       if (venues && Date.now() - fetchedAt < VENUE_CACHE_MS) return venues;
       try {
-        const r = await callPartner('/api/venues');
-        if (r.status !== 200 || !Array.isArray(r.body)) throw new Error(`AccessMap returned status ${r.status}`);
-        venues = r.body;
+        const version = getPartnerVersion();
+        const r = await callPartner(version.paths.venues);
+        if (r.status !== 200) throw new Error(`AccessMap returned status ${r.status}`);
+        venues = version.parseVenueList(r.body);
         fetchedAt = Date.now();
         return venues;
       } catch (err) {

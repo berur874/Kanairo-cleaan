@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: Kanairo-Klean Provider API
   description: API contract provided by Kanairo-Klean (Team 13) for Group 1 (Artisans App) to source raw materials and log scrap.
-  version: 1.2.0
+  version: 1.3.0
 servers:
   - url: http://localhost:5050
     description: Local development (see README for setup)
@@ -15,8 +15,9 @@ security:
 paths:
   /collection-locations:
     get:
-      summary: List collection and drop-off hotspots
-      description: Retrieve collection locations where artisans can pick up materials. Only active locations are returned, so is_active is always true in this list. Inactive locations never appear here, and drop-offs to them return 404.
+      deprecated: true
+      summary: List collection and drop-off hotspots (deprecated, use /v2/collection-locations)
+      description: Deprecated in 1.3.0; use GET /v2/collection-locations, which wraps the list in { data, count }. This v1 shape stays until the Sunset date sent in the Deprecation, Sunset and Link response headers (2026-11-12). Also available as /v1/collection-locations. Retrieve collection locations where artisans can pick up materials. Only active locations are returned, so is_active is always true in this list. Inactive locations never appear here, and drop-offs to them return 404.
       responses:
         '200':
           description: A list of active collection hotspots.
@@ -35,8 +36,9 @@ paths:
 
   /materials:
     get:
-      summary: Read raw materials catalog
-      description: Retrieve available raw materials with costs, with optional filtering by material type and minimum available quantity.
+      deprecated: true
+      summary: Read raw materials catalog (deprecated, use /v2/materials)
+      description: Deprecated in 1.3.0; use GET /v2/materials, which wraps the list in { data, count }. This v1 shape stays until the Sunset date sent in the Deprecation, Sunset and Link response headers (2026-11-12). Also available as /v1/materials. Retrieve available raw materials with costs, with optional filtering by material type and minimum available quantity.
       parameters:
         - name: type
           in: query
@@ -71,6 +73,64 @@ paths:
               example:
                 code: 400
                 message: 'type must be one of: metal, plastic, paper, glass, e-waste'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /v2/collection-locations:
+    get:
+      summary: List collection and drop-off hotspots (v2)
+      description: Same data as GET /collection-locations, with the list wrapped as { data, count } so paging can be added later without another breaking change. Only active locations are returned.
+      responses:
+        '200':
+          description: The active collection hotspots, wrapped.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionLocationList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /v2/materials:
+    get:
+      summary: Read raw materials catalog (v2)
+      description: 'Same data, filters and errors as GET /materials, with the list wrapped as { data, count }. An empty result is { "data": [], "count": 0 }, not an error.'
+      parameters:
+        - name: type
+          in: query
+          required: false
+          description: Filter by material type. Must be one of the MaterialType values; any other value returns 400.
+          schema:
+            $ref: '#/components/schemas/MaterialType'
+        - name: min_quantity_kg
+          in: query
+          required: false
+          description: Filter materials available in quantities greater than or equal to this value (in kg). Must be a number >= 0; anything else returns 400.
+          schema:
+            type: number
+            format: float
+            minimum: 0
+            example: 50.0
+      responses:
+        '200':
+          description: The materials matching the filters, wrapped.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialList'
+        '400':
+          description: Invalid filter, as in v1.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
@@ -278,6 +338,30 @@ components:
           description: Price in KES per kg.
           example: 150.00
 
+    CollectionLocationList:
+      type: object
+      required: [data, count]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectionLocation'
+        count:
+          type: integer
+          description: Number of items in data.
+          example: 1
+    MaterialList:
+      type: object
+      required: [data, count]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Material'
+        count:
+          type: integer
+          description: Number of items in data.
+          example: 1
     DropOffInput:
       type: object
       required:

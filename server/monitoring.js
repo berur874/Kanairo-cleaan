@@ -4,8 +4,6 @@
 // Never logged: keys or tokens (only a 6-character fingerprint), passwords, bodies, query strings.
 // The totals live in memory: they reset when the server restarts, and would be wrong across
 // several server copies.
-const crypto = require('crypto');
-
 const round = (n) => Math.round(n * 10) / 10;
 
 const stats = {
@@ -19,41 +17,6 @@ const stats = {
   // couldn't be reached. Tells us how often our partner is really failing.
   partnerFallbacks: 0,
 };
-
-function who(req) {
-  // Support req.apiKey, X-API-Key header, or Bearer token
-  const rawKey =
-    req.apiKey ||
-    req.get('x-api-key') ||
-    (req.get('Authorization') || '').replace(/^Bearer\s+/i, '');
-
-  if (!rawKey) return 'none';
-
-  const hash = crypto.createHash('sha256').update(rawKey).digest('hex');
-  return 'key-' + hash.slice(0, 6);
-}
-
-function monitor(req, res, next) {
-  const start = process.hrtime.bigint();
-
-  res.on('finish', () => {
-    // Calculate elapsed time in milliseconds
-    const ms = Number(process.hrtime.bigint() - start) / 1e6;
-
-    console.log(
-      JSON.stringify({
-        time: new Date().toISOString(),
-        method: req.method,
-        path: req.path, // req.path excludes query parameters for security
-        status: res.statusCode,
-        ms: round(ms),
-        caller: who(req),
-      })
-    );
-  });
-
-  next();
-}
 
 function newRoute() {
   return { count: 0, clientErrors: 0, serverErrors: 0, totalMs: 0, maxMs: 0 };

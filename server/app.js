@@ -10,6 +10,10 @@ const { ACCESSIBILITY_FEATURES } = require('./accessibility');
 const { loadApiKeys, createApiKeyCheck, createRateLimiter, sendServerError, envNumber } = require('./security');
 const { fetchWithRetry, failureReason } = require('./resilientFetch');
 const { monitor, statsHandler, countPartnerFallback } = require('./monitoring');
+const { createCatalog } = require('./catalog');
+const { createV1 } = require('./v1');
+const { createV2 } = require('./v2');
+const { getPartnerVersion } = require('./partner');
 
 const app = express();
 
@@ -136,55 +140,18 @@ const requireApiToken = [
 // every other partner endpoint. It doesn't count itself in its own reply, only in the next one.
 app.get('/stats', requireApiToken, statsHandler);
 
-//To be used by group one — response shaped to match openapi.yaml Material schema exactly
-app.get('/materials', requireApiToken, async (req, res) => {
-  const { type, min_quantity_kg } = req.query;
-
-  if (type !== undefined && !MATERIAL_TYPES.includes(type)) {
-    return buildBadRequest(res, `type must be one of: ${MATERIAL_TYPES.join(', ')}`);
-  }
-
-  const minQuantity = Number(min_quantity_kg);
-  if (min_quantity_kg !== undefined && (typeof min_quantity_kg !== 'string' || min_quantity_kg.trim() === '' || !Number.isFinite(minQuantity) || minQuantity < 0)) {
-    return buildBadRequest(res, 'min_quantity_kg must be a number greater than or equal to 0');
-  }
-
-  let sql = 'SELECT id, name, type, price, stock_kg FROM materials WHERE 1=1';
-  const params = [];
-  if (type !== undefined) { sql += ' AND type = ?'; params.push(type); }
-  if (min_quantity_kg !== undefined) { sql += ' AND stock_kg >= ?'; params.push(minQuantity); }
-
-  try {
-    const [rows] = await pool.query(sql, params);
-    const materials = rows.map((row) => ({
-      material_id: row.id,
-      name: row.name,
-      type: row.type,
-      quantity_kg: Number(row.stock_kg),
-      unit_price_kes: Number(row.price),
-    }));
-    res.json(materials);
-  } catch (err) {
-    sendServerError(res, err);
-  }
-});
-
-//To be used by group one — response shaped to match openapi.yaml CollectionLocation schema exactly
-app.get('/collection-locations', requireApiToken, async (req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT id, name, area, county, active FROM hotspots WHERE active = 1');
-    const locations = rows.map((row) => ({
-      location_id: String(row.id),
-      name: row.name,
-      area: row.area,
-      county: row.county,
-      is_active: Boolean(row.active),
-    }));
-    res.json(locations);
-  } catch (err) {
-    sendServerError(res, err);
-  }
-});
+// Week 13: versioned partner reads for Group 1. The data comes from catalog.js; v1.js and v2.js only
+// decide the response shape. Mounted after the per-route key check (requireApiToken is inside each
+// route), so v2 needs a key like everything else.
+//   /v2/...  the new shape: { data, count }
+//   /v1/...  the old shape: a bare list, with Deprecation/Sunset/Link headers
+//   /...     the same as v1, so Group 1's existing unversioned URLs keep working until the sunset
+const catalog = createCatalog({ pool, materialTypes: MATERIAL_TYPES });
+const routeDeps = { catalog, requireApiToken, buildBadRequest, sendServerError };
+const v1 = createV1(routeDeps);
+app.use('/v2', createV2(routeDeps));
+app.use('/v1', v1);
+app.use('/', v1);
 
 //Internal — not part of the Group 1 contract, feeds the frontend price ticker/marketplace UI.
 // Public (no key) because the logged-out landing page shows these prices; see SECURITY_AUDIT.md.
@@ -350,6 +317,13 @@ const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 class PartnerUnavailable extends Error {}
 
+// Fail at startup, not on the first request, if PARTNER_VERSION is mistyped. Printing it makes the
+// version in use visible in the log terminal during a demo.
+{
+  const version = getPartnerVersion();
+  if (process.env.NODE_ENV !== 'test') console.log(`Group 12 integration: PARTNER_VERSION=${version.name} (${version.paths.venues})`);
+}
+
 // Week 11: every call to Group 12 gets a timeout and, for GETs only, up to 2 retries (resilientFetch.js).
 // Numbers and why: RESILIENCE_NOTES.md. Worst case for a GET: 3 x 1500 + 200 + 400 = 5100 ms.
 const PARTNER_CALL = {
@@ -391,6 +365,16 @@ function sendPartnerFailure(res, err) {
   res.status(502).json({ code: 502, message: 'Partner data unavailable' });
 }
 
+// Reads the venue list out of Group 12's answer with the parser for PARTNER_VERSION (partner.js). A shape
+// we don't recognise counts as "partner unavailable", so the saved copy covers it and the log says why.
+function parseVenueList(version, body) {
+  try {
+    return version.parseVenueList(body);
+  } catch (err) {
+    throw new PartnerUnavailable(err.message);
+  }
+}
+
 function pickAccessibility(a) {
   if (!a || typeof a !== 'object') return undefined;
   return Object.fromEntries(ACCESSIBILITY_FEATURES.map((k) => [k, a[k]]));
@@ -400,7 +384,7 @@ function pickAccessibility(a) {
 // restart). When Group 12 can't be reached we answer with it, flagged stale, instead of an error.
 const lastGoodVenues = new Map(); // category -> { data, asOf }
 
-// GET /api/venues. Answers { data, stale, asOf }: live data, or the saved copy when Group 12 fails.
+// GET venues (/api/venues in v1, /v2/venues in v2). Answers { data, stale, asOf }: live data, or the saved copy when Group 12 fails.
 app.get('/partner/venues', requireUser(), async (req, res) => {
   const category = req.query.category ?? 'market';
   if (!PARTNER_CATEGORIES.includes(category)) {
@@ -408,11 +392,11 @@ app.get('/partner/venues', requireUser(), async (req, res) => {
   }
 
   try {
-    const r = await callPartner(`/api/venues?category=${category}`);
+    const version = getPartnerVersion();
+    const r = await callPartner(`${version.paths.venues}?category=${category}`);
     if (r.status !== 200) throw r;
-    if (!Array.isArray(r.body)) throw new PartnerUnavailable('unexpected shape (expected an array of venues)');
 
-    const data = r.body.map((v) => {
+    const data = parseVenueList(version, r.body).map((v) => {
       const a = v.accessibility || {};
       return {
         id: v.id,
@@ -439,13 +423,13 @@ app.get('/partner/venues', requireUser(), async (req, res) => {
   }
 });
 
-// GET /api/venues/:slug
+// GET one venue
 app.get('/partner/venues/:slug', requireUser(), async (req, res) => {
   const { slug } = req.params;
   if (!SLUG_PATTERN.test(slug)) return buildBadRequest(res, 'slug must be lowercase letters, digits and hyphens');
 
   try {
-    const r = await callPartner(`/api/venues/${slug}`);
+    const r = await callPartner(getPartnerVersion().paths.venue(slug));
     if (r.status !== 200) return sendPartnerFailure(res, r);
 
     const v = r.body || {};
@@ -464,13 +448,13 @@ app.get('/partner/venues/:slug', requireUser(), async (req, res) => {
   }
 });
 
-// GET /api/venues/:slug/rating
+// GET a venue's rating
 app.get('/partner/venues/:slug/rating', requireUser(), async (req, res) => {
   const { slug } = req.params;
   if (!SLUG_PATTERN.test(slug)) return buildBadRequest(res, 'slug must be lowercase letters, digits and hyphens');
 
   try {
-    const r = await callPartner(`/api/venues/${slug}/rating`);
+    const r = await callPartner(getPartnerVersion().paths.rating(slug));
     if (r.status !== 200) return sendPartnerFailure(res, r);
     res.json({
       slug: r.body?.slug,
@@ -482,7 +466,7 @@ app.get('/partner/venues/:slug/rating', requireUser(), async (req, res) => {
   }
 });
 
-// POST /api/venues. Writes to Group 12's live directory.
+// POST a venue. Writes to Group 12's live directory.
 app.post('/partner/venues', requireUser(), async (req, res) => {
   const { name, area, address, category, accessibility, coordinates } = req.body || {};
   if (category !== undefined && !PARTNER_CATEGORIES.includes(category)) {
@@ -490,7 +474,7 @@ app.post('/partner/venues', requireUser(), async (req, res) => {
   }
 
   try {
-    const r = await callPartner('/api/venues', {
+    const r = await callPartner(getPartnerVersion().paths.venues, {
       method: 'POST',
       body: { name, area, address, category, accessibility: pickAccessibility(accessibility), coordinates },
     });
@@ -501,12 +485,12 @@ app.post('/partner/venues', requireUser(), async (req, res) => {
   }
 });
 
-// POST /api/reports. Writes to Group 12's live data.
+// POST a report (the same path in v1 and v2). Writes to Group 12's live data.
 app.post('/partner/reports', requireUser(), async (req, res) => {
   const { venueId, rating, description, visitedAt, accessibility } = req.body || {};
 
   try {
-    const r = await callPartner('/api/reports', {
+    const r = await callPartner(getPartnerVersion().paths.reports, {
       method: 'POST',
       body: { venueId, rating, description, visitedAt, accessibility: pickAccessibility(accessibility) },
     });

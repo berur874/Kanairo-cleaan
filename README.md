@@ -288,7 +288,11 @@ Malformed JSON also returns `code` and `message`. A failure on our side returns 
 
 ## API contract
 
-See [`openapi.yaml`](openapi.yaml) for the OpenAPI 3.0 contract (version 1.2.0), including request and response schemas.
+See [`openapi.yaml`](openapi.yaml) for the OpenAPI 3.0 contract (version 1.3.0), including request and response schemas.
+
+### Versions
+
+`GET /collection-locations` and `GET /materials` have a v2 at `/v2/collection-locations` and `/v2/materials`. The only difference is the shape: v2 wraps the list as `{ "data": [ ... ], "count": N }`, where v1 returns a bare list. v1 (at `/v1/...` and at the old unversioned URLs) is deprecated: every v1 response carries `Deprecation`, `Sunset` and `Link` headers, and it stops working on 2026-11-12. See [`DEPRECATION_NOTICE.md`](DEPRECATION_NOTICE.md) and [`VERSIONING_NOTES.md`](VERSIONING_NOTES.md).
 
 If you set up a database before version 1.1.0, or before the webapp accounts were added, run `npm run db:schema` in `server` again. It adds the missing tables and columns (`county`, `drop_offs`, `users`, `sessions`, and the seller and buyer columns) without deleting data.
 

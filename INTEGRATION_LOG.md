@@ -82,3 +82,13 @@ In every case our server kept answering its other routes. Restoring the real `PA
 ## Downstream (Part E)
 
 Our API is live for Group 1 at `https://supervoluminous-vikki-unsurlily.ngrok-free.dev`, using `Authorization: Bearer <key>`. Requests can be watched live at `http://localhost:4040`. No issues have been reported yet.
+
+## Week 13: Group 12 deprecation notice and migration to v2
+
+| Symptom | What changed | What we changed | Whose code, and who fixed it |
+| --- | --- | --- | --- |
+| A deprecation notice from Group 12 (dated 2026-11-04) said their v1 is deprecated and v2 is live. Nothing broke, because we were warned and v1 stays up through 2026-11-13 (Demo Day). | `GET /api/venues` became `GET /v2/venues`, and the bare array became `{ data, count }`. The venue, rating and add-venue calls only changed prefix (`/api/` to `/v2/`). `POST /api/reports` did not move. | New `server/partner.js` holds both versions' paths and parsers; `PARTNER_VERSION=v2` in `.env` switches; `app.js` and the venue cache in `marketplace.js` both use it. Tests: `partner.test.js` and `partner-version.test.js`. | Their change, our code. Fixed by us on 2026-11-11. |
+
+Check on 2026-11-11 against their live API: v2 gave HTTP 200 with `"stale": false` and no `partner call failed` line; switching to v1 and back to v2 both worked. The venue cache in `marketplace.js` also called `/api/venues`, which I found while reading the code, not from a failure.
+
+Open item: Group 12 to confirm a `GET /v2/venues` row with our caller label in their `/api/stats`.
