@@ -76,6 +76,12 @@ npm run db:seed
 npm start
 ```
 
+Or, once `server/.env` exists, do all of the above in one command from the repository root (needs Git Bash on Windows, or any bash on macOS/Linux). It installs dependencies if needed, creates or updates the schema, and starts the API; add `--seed` to also reset the database to the demo data (this deletes existing rows, so only use it on a development database):
+
+```sh
+bash run.sh
+```
+
 Keep that terminal open. In a second terminal, set `TOKEN` to one of the keys in `API_KEYS` (see [Access and authentication](#access-and-authentication)), then run the quickstart request (Windows PowerShell users can use `curl.exe`):
 
 ```sh
@@ -292,7 +298,7 @@ See [`openapi.yaml`](openapi.yaml) for the OpenAPI 3.0 contract (version 1.3.0),
 
 ### Versions
 
-`GET /collection-locations` and `GET /materials` have a v2 at `/v2/collection-locations` and `/v2/materials`. The only difference is the shape: v2 wraps the list as `{ "data": [ ... ], "count": N }`, where v1 returns a bare list. v1 (at `/v1/...` and at the old unversioned URLs) is deprecated: every v1 response carries `Deprecation`, `Sunset` and `Link` headers, and it stops working on 2026-11-12. See [`DEPRECATION_NOTICE.md`](DEPRECATION_NOTICE.md) and [`VERSIONING_NOTES.md`](VERSIONING_NOTES.md).
+`GET /collection-locations` and `GET /materials` have a v2 at `/v2/collection-locations` and `/v2/materials`. The only difference is the shape: v2 wraps the list as `{ "data": [ ... ], "count": N }`, where v1 returns a bare list. v1 (at `/v1/...` and at the old unversioned URLs) is deprecated: every v1 response carries `Deprecation`, `Sunset` and `Link` headers, and the `Sunset` date is 2026-11-12. v1 keeps running through Demo Day (2026-11-13), and we will tell consumers before we turn it off. See [`DEPRECATION_NOTICE.md`](DEPRECATION_NOTICE.md) and [`VERSIONING_NOTES.md`](VERSIONING_NOTES.md).
 
 If you set up a database before version 1.1.0, or before the webapp accounts were added, run `npm run db:schema` in `server` again. It adds the missing tables and columns (`county`, `drop_offs`, `users`, `sessions`, and the seller and buyer columns) without deleting data.
 
